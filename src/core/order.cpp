@@ -4,6 +4,11 @@
 
 #include "core/order.h"
 
+#include <algorithm>
+
 namespace core {
-    Order::Order(OrderId id, Price price, Quantity qty, Side side): id(id), price(price), qty(qty), side(side) {}
+    Order::Order(const OrderId id, const Price price, const Quantity qty, const Side side) : id(id), price(price),
+        qty(qty),
+        side(side), unfilledQty(qty) {
+    }
 }

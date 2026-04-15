@@ -5,6 +5,8 @@
 #include <vector>
 #include <list>
 
+#include "utils/logger.h"
+
 namespace core {
     using OrderList = std::list<Order>;
 
@@ -45,11 +47,13 @@ namespace core {
 
         if (auto orderIt = it->second; orderIt->side == Side::Buy) {
             auto &level = impl->bids[orderIt->price];
+            utils::logger::log("Canceling buy order " + std::to_string(orderId) + " at price " + std::to_string(orderIt->price));
             level.erase(orderIt);
             if (level.empty()) impl->bids.erase(orderIt->price);
         } else {
             auto &level = impl->asks[orderIt->price];
             level.erase(orderIt);
+            utils::logger::log("Canceling sell order " + std::to_string(orderId) + " at price " + std::to_string(orderIt->price));
             if (level.empty()) impl->asks.erase(orderIt->price);
         }
 
@@ -64,15 +68,15 @@ namespace core {
         return !impl->asks.empty();
     }
 
-    std::optional<std::reference_wrapper<const Order>> OrderBook::getBestAskOrder() const {
+    std::optional<std::reference_wrapper<Order>> OrderBook::getBestAskOrder() const {
         if (!hasAsks()) return std::nullopt;
-        const auto &bestLevelList = impl->asks.begin()->second;
+        auto &bestLevelList = impl->asks.begin()->second;
         return bestLevelList.empty() ? std::nullopt : std::make_optional(std::ref(bestLevelList.front()));
     }
 
-    std::optional<std::reference_wrapper<const Order>> OrderBook::getBestBidOrder() const {
+    std::optional<std::reference_wrapper<Order>> OrderBook::getBestBidOrder() const {
         if (!hasBids()) return std::nullopt;
-        const auto &bestLevelList = impl->bids.begin()->second;
+        auto &bestLevelList = impl->bids.begin()->second;
         return bestLevelList.empty() ? std::nullopt : std::make_optional(std::ref(bestLevelList.front()));
     }
 }

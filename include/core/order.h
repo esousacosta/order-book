@@ -12,6 +12,7 @@ namespace core {
         Quantity qty;
         Side side;
         OrderType type = OrderType::Limit;
+        Quantity unfilledQty;
 
         Order(OrderId id, Price price, Quantity qty, Side side);
     };

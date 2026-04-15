@@ -15,8 +15,8 @@ namespace core {
         ~OrderBook();
         void addOrder(const Order& order) const;
         void cancelOrder(OrderId id) const;
-        [[nodiscard]] std::optional<std::reference_wrapper<const Order>> getBestAskOrder() const;
-        [[nodiscard]] std::optional<std::reference_wrapper<const Order>> getBestBidOrder() const;
+        [[nodiscard]] std::optional<std::reference_wrapper<Order>> getBestAskOrder() const;
+        [[nodiscard]] std::optional<std::reference_wrapper<Order>> getBestBidOrder() const;
         [[nodiscard]] bool hasBids() const;
         [[nodiscard]] bool hasAsks() const;
 

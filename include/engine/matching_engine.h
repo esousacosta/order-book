@@ -5,9 +5,11 @@
 namespace engine {
     class MatchingEngine {
     public:
-        void processOrder(const core::Order& order) const;
+        void processOrder(core::Order& order) const;
 
     private:
         core::OrderBook book;
+        void tryToMatchBuyOrder(core::Order &order) const;
+        void tryToMatchSellOrder(core::Order &order) const;
     };
 }
