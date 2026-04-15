@@ -3,6 +3,9 @@
 //
 #pragma once
 
+#include <functional>
+#include <optional>
+
 #include "core/order.h"
 
 namespace core {
@@ -12,6 +15,10 @@ namespace core {
         ~OrderBook();
         void addOrder(const Order& order) const;
         void cancelOrder(OrderId id) const;
+        [[nodiscard]] std::optional<std::reference_wrapper<const Order>> getBestAskOrder() const;
+        [[nodiscard]] std::optional<std::reference_wrapper<const Order>> getBestBidOrder() const;
+        [[nodiscard]] bool hasBids() const;
+        [[nodiscard]] bool hasAsks() const;
 
     private:
         struct Impl;

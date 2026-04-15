@@ -55,4 +55,24 @@ namespace core {
 
         impl->orderIndex.erase(orderId);
     }
+
+    bool OrderBook::hasBids() const {
+        return !impl->bids.empty();
+    }
+
+    bool OrderBook::hasAsks() const {
+        return !impl->asks.empty();
+    }
+
+    std::optional<std::reference_wrapper<const Order>> OrderBook::getBestAskOrder() const {
+        if (!hasAsks()) return std::nullopt;
+        const auto &bestLevelList = impl->asks.begin()->second;
+        return bestLevelList.empty() ? std::nullopt : std::make_optional(std::ref(bestLevelList.front()));
+    }
+
+    std::optional<std::reference_wrapper<const Order>> OrderBook::getBestBidOrder() const {
+        if (!hasBids()) return std::nullopt;
+        const auto &bestLevelList = impl->bids.begin()->second;
+        return bestLevelList.empty() ? std::nullopt : std::make_optional(std::ref(bestLevelList.front()));
+    }
 }
