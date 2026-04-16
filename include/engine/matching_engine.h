@@ -9,7 +9,10 @@ namespace engine {
 
     private:
         core::OrderBook book;
-        void tryToMatchBuyOrder(core::Order &order) const;
-        void tryToMatchSellOrder(core::Order &order) const;
+        void tryToMatchBuyOrder(core::Order &receivedOrder) const;
+        void tryToMatchSellOrder(core::Order &receivedOrder) const;
+        void matchOrders(core::Order &freshOrder, core::Order &bestExistingOrder) const;
+        void handlePartiallyFilledOrder(const core::Order &receivedOrder) const;
+
     };
 }

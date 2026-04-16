@@ -11,4 +11,8 @@ namespace core {
         qty(qty),
         side(side), unfilledQty(qty) {
     }
+
+    Order::Order(const OrderId id, const Price price, const Quantity qty, const Side side, const OrderType type) : Order(id, price, qty, side) {
+        this->type = type;
+    }
 }

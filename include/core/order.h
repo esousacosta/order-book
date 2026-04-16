@@ -15,5 +15,6 @@ namespace core {
         Quantity unfilledQty;
 
         Order(OrderId id, Price price, Quantity qty, Side side);
+        Order(OrderId id, Price price, Quantity qty, Side side, OrderType type);
     };
 }
