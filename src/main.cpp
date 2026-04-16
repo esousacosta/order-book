@@ -17,7 +17,7 @@ int main() {
     engine.processOrder(o3);
     engine.processOrder(o4);
 
-    utils::logger::log("Processed orders o1 and o2");
+    utils::logger::log("Processed orders o1...o4");
 
     return 0;
 }

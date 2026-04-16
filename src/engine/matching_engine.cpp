@@ -33,7 +33,7 @@ namespace engine {
             utils::logger::log("Matched buy order " + std::to_string(order.id) + \
                 " with open sell order " + std::to_string(bestAskOrder.id) + \
                 " for quantity " + std::to_string(tradeQty) + \
-                " at price " + std::to_string(bestAskOrder.price));
+                " at price " + std::to_string(std::min(order.price, bestAskOrder.price)));
             // In a real system, we would also record the trade here
             if (tradeQty == bestAskOrder.unfilledQty) {
                 utils::logger::log("Fully filled sell order " + std::to_string(bestAskOrder.id) + ", removing from book");
@@ -70,7 +70,7 @@ namespace engine {
             utils::logger::log("Matched sell order " + std::to_string(order.id) + \
                 " with open buy order " + std::to_string(bestBidOrder.id) + \
                 " for quantity " + std::to_string(tradeQty) + \
-                " at price " + std::to_string(bestBidOrder.price));
+                " at price " + std::to_string(std::min(bestBidOrder.price, order.price)));
             // In a real system, we would also record the trade here
             if (tradeQty == bestBidOrder.unfilledQty) {
                 utils::logger::log("Fully filled buy order " + std::to_string(bestBidOrder.id) + ", removing from book");
