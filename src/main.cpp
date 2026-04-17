@@ -5,7 +5,7 @@
 using namespace core;
 
 int main() {
-    const engine::MatchingEngine engine;
+    engine::MatchingEngine engine;
 
     Order o1(1, 120, 15, Side::Buy);
     Order o2(2, 100, 5, Side::Sell);
@@ -17,6 +17,7 @@ int main() {
     engine.processOrder(o1);
     engine.processOrder(o2);
     engine.processOrder(o3);
+    engine.modifyOrder(o3.id, 12, 105);
     engine.processOrder(o4);
     engine.processOrder(o5);
     engine.processOrder(o6);

@@ -1,5 +1,6 @@
 #include "core/book.h"
 
+#include <format>
 #include <map>
 #include <unordered_map>
 #include <vector>
@@ -39,6 +40,9 @@ namespace core {
             level.push_back(order);
             impl->orderIndex[order.id] = std::prev(level.end());
         }
+        utils::logger::log(std::format("Added {} order {} to book for quantity {}, at price {}",
+                                       order.side == Side::Buy ? "buy" : "sell", std::to_string(order.id),
+                                       std::to_string(order.unfilledQty), std::to_string(order.price)));
     }
 
     void OrderBook::cancelOrder(OrderId orderId) const {
@@ -60,6 +64,27 @@ namespace core {
         }
 
         impl->orderIndex.erase(orderId);
+    }
+
+    void OrderBook::modifyOrder(OrderId orderId, Quantity newRemainingQty, Price newPrice) {
+        const auto orderEntryIt = impl->orderIndex.find(orderId);
+        // If it is end, return
+        if (orderEntryIt == impl->orderIndex.end()) return;
+
+        const auto& orderIt = orderEntryIt->second;
+        if (auto& order = *orderIt; newPrice != orderIt->price || newRemainingQty > order.unfilledQty) {
+            utils::logger::log(std::format("[MOD] Modifying order {}: new price {}, new quantity {}",
+                                           std::to_string(orderId), std::to_string(newPrice), std::to_string(newRemainingQty)));
+            cancelOrder(orderId);
+            order.price = newPrice;
+            order.unfilledQty = newRemainingQty;
+            order.qty = newRemainingQty;
+            addOrder(order);
+        } else {
+            utils::logger::log(std::format("[MOD] Modifying order {}: new quantity {} (price unchanged)",
+                                           std::to_string(orderId), std::to_string(newRemainingQty)));
+            order.unfilledQty = newRemainingQty;
+        }
     }
 
     bool OrderBook::hasBids() const {

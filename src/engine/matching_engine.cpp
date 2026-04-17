@@ -5,7 +5,7 @@
 #include "utils/logger.h"
 
 namespace engine {
-    void MatchingEngine::processOrder(core::Order &order) const {
+    void MatchingEngine::processOrder(core::Order &order) {
         utils::logger::log(std::format("----- Processing {} order {} for quantity {}, at price {} -----",
                                        order.side == core::Side::Buy ? "buy" : "sell", std::to_string(order.id),
                                        std::to_string(order.qty), std::to_string(order.price)));
@@ -26,9 +26,13 @@ namespace engine {
         }
     }
 
+    void MatchingEngine::modifyOrder(core::OrderId orderId, core::Quantity newQty, core::Price newPrice) {
+       book.modifyOrder(orderId, newQty, newPrice);
+    }
+
     template<typename Comparator, typename GetBestOrderFn>
     core::Trades MatchingEngine::tryToMatchReceivedOrder(core::Order &receivedOrder, GetBestOrderFn getBestOrder,
-                                                         Comparator comparePrices) const {
+                                                         Comparator comparePrices) {
         if (const auto bestMatchOrderOpt = std::invoke(getBestOrder, book); !bestMatchOrderOpt.has_value()) {
             if (receivedOrder.type == core::OrderType::Limit) book.addOrder(receivedOrder);
             return {};
@@ -49,7 +53,7 @@ namespace engine {
         return trades;
     }
 
-    core::Trade MatchingEngine::matchOrders(core::Order &freshOrder, core::Order &bestExistingOrder) const {
+    core::Trade MatchingEngine::matchOrders(core::Order &freshOrder, core::Order &bestExistingOrder) {
         std::string receivedOrderSide;
         std::string bestExistingOrderSide;
         if (freshOrder.side == core::Side::Buy) {
@@ -88,7 +92,7 @@ namespace engine {
         return trade;
     }
 
-    void MatchingEngine::handlePartiallyFilledOrder(const core::Order &receivedOrder) const {
+    void MatchingEngine::handlePartiallyFilledOrder(const core::Order &receivedOrder) {
         if (receivedOrder.unfilledQty > 0) {
             utils::logger::log(std::format("Unfilled quantity for order {}: {}", std::to_string(receivedOrder.id),
                                            std::to_string(receivedOrder.unfilledQty)));
