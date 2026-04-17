@@ -9,45 +9,29 @@ namespace engine {
 
         switch (order.side) {
             case core::Side::Buy:
-                tryToMatchBuyOrder(order);
+                // tryToMatchBuyOrder(order);
+                tryToMatchReceivedOrder(order, &core::OrderBook::getBestAskOrder, std::less<core::Price>{});
                 break;
             case core::Side::Sell:
-                tryToMatchSellOrder(order);
+                // tryToMatchSellOrder(order);
+                tryToMatchReceivedOrder(order, &core::OrderBook::getBestBidOrder, std::greater<core::Price>{});
                 break;
         }
     }
 
-    // This function has lots of duplications: factor it later on.
-    void MatchingEngine::tryToMatchBuyOrder(core::Order &receivedOrder) const {
-        if (const auto bestMatchOrderOpt = book.getBestAskOrder(); !bestMatchOrderOpt.has_value()) {
+    template <typename Comparator, typename GetBestOrderFunc>
+    void MatchingEngine::tryToMatchReceivedOrder(core::Order &receivedOrder, GetBestOrderFunc getBestOrder, Comparator comparePrices) const {
+        if (const auto bestMatchOrderOpt = std::invoke(getBestOrder, book); !bestMatchOrderOpt.has_value()) {
             if (receivedOrder.type == core::OrderType::Limit) book.addOrder(receivedOrder);
             return;
         }
 
         while (receivedOrder.unfilledQty > 0) {
-            auto bestAskOpt = book.getBestAskOrder();
-            if (!bestAskOpt.has_value()) break;
-            auto &bestAskOrder = bestAskOpt->get();
-            if (receivedOrder.type == core::OrderType::Limit && bestAskOrder.price > receivedOrder.price) break;
-            matchOrders(receivedOrder, bestAskOrder);
-        }
-
-        handlePartiallyFilledOrder(receivedOrder);
-    }
-
-    void MatchingEngine::tryToMatchSellOrder(core::Order &receivedOrder) const {
-        if (const auto bestMatchOrderOpt = book.getBestBidOrder(); !bestMatchOrderOpt.has_value()) {
-            if (receivedOrder.type == core::OrderType::Limit) book.addOrder(receivedOrder);
-            return;
-        }
-
-        core::Quantity unfilledQty = receivedOrder.qty;
-        while (receivedOrder.unfilledQty > 0) {
-            auto bestBidOpt = book.getBestBidOrder();
-            if (!bestBidOpt.has_value()) break;
-            auto &bestBidOrder = bestBidOpt->get();
-            if (receivedOrder.type == core::OrderType::Limit && bestBidOrder.price < receivedOrder.price) break;
-            matchOrders(receivedOrder, bestBidOrder);
+            auto bestBookOrderOpt = std::invoke(getBestOrder, book);
+            if (!bestBookOrderOpt.has_value()) break;
+            auto &bestBookOrder = bestBookOrderOpt->get();
+            if (receivedOrder.type == core::OrderType::Limit && comparePrices(receivedOrder.price, bestBookOrder.price)) break;
+            matchOrders(receivedOrder, bestBookOrder);
         }
 
         handlePartiallyFilledOrder(receivedOrder);
