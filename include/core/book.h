@@ -13,7 +13,7 @@ namespace core {
         public:
         OrderBook();
         ~OrderBook();
-        void addOrder(const Order& order) const;
+        void addOrder(const Order& order);
         void cancelOrder(OrderId id) const;
         [[nodiscard]] std::optional<std::reference_wrapper<Order>> getBestAskOrder() const;
         [[nodiscard]] std::optional<std::reference_wrapper<Order>> getBestBidOrder() const;

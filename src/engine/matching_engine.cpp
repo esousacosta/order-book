@@ -7,7 +7,8 @@
 namespace engine {
     void MatchingEngine::processOrder(core::Order &order) const {
         utils::logger::log(std::format("----- Processing {} order {} for quantity {}, at price {} -----",
-            order.side == core::Side::Buy ? "buy" : "sell", std::to_string(order.id), std::to_string(order.qty), std::to_string(order.price)));
+                                       order.side == core::Side::Buy ? "buy" : "sell", std::to_string(order.id),
+                                       std::to_string(order.qty), std::to_string(order.price)));
         core::Trades trades;
         switch (order.side) {
             case core::Side::Buy:
@@ -18,14 +19,16 @@ namespace engine {
                 break;
         }
 
-        for (const auto& [price, quantity, maker, taker] : trades) {
-            utils::logger::log(std::format("--> Executed trade: price {}, quantity {}, maker order id {}, taker order id {}",
+        for (const auto &[price, quantity, maker, taker]: trades) {
+            utils::logger::log(std::format(
+                "--> Executed trade: price {}, quantity {}, maker order id {}, taker order id {}",
                 price, quantity, maker, taker));
         }
     }
 
-    template <typename Comparator, typename GetBestOrderFunc>
-    core::Trades MatchingEngine::tryToMatchReceivedOrder(core::Order &receivedOrder, GetBestOrderFunc getBestOrder, Comparator comparePrices) const {
+    template<typename Comparator, typename GetBestOrderFn>
+    core::Trades MatchingEngine::tryToMatchReceivedOrder(core::Order &receivedOrder, GetBestOrderFn getBestOrder,
+                                                         Comparator comparePrices) const {
         if (const auto bestMatchOrderOpt = std::invoke(getBestOrder, book); !bestMatchOrderOpt.has_value()) {
             if (receivedOrder.type == core::OrderType::Limit) book.addOrder(receivedOrder);
             return {};
@@ -37,7 +40,8 @@ namespace engine {
             auto bestBookOrderOpt = std::invoke(getBestOrder, book);
             if (!bestBookOrderOpt.has_value()) break;
             auto &bestBookOrder = bestBookOrderOpt->get();
-            if (receivedOrder.type == core::OrderType::Limit && comparePrices(receivedOrder.price, bestBookOrder.price)) break;
+            if (receivedOrder.type == core::OrderType::Limit && comparePrices(receivedOrder.price, bestBookOrder.price))
+                break;
             trades.push_back(matchOrders(receivedOrder, bestBookOrder));
         }
 
@@ -56,40 +60,42 @@ namespace engine {
             bestExistingOrderSide = "buy";
         }
 
-        core::Price tradePrice;
-        if (freshOrder.type == core::OrderType::Market) {
-            tradePrice = bestExistingOrder.price;
-        } else {
-            tradePrice = std::min(freshOrder.price, bestExistingOrder.price);
-        }
+        core::Price tradePrice = bestExistingOrder.price;
 
         const core::Quantity tradeQty = std::min(freshOrder.unfilledQty, bestExistingOrder.unfilledQty);
         freshOrder.unfilledQty -= tradeQty;
 
         utils::logger::log(std::format("Matched {} order {} with open {} order {}, for quantity {}, at price {}",
-            receivedOrderSide, std::to_string(freshOrder.id), bestExistingOrderSide, std::to_string(bestExistingOrder.id), tradeQty, tradePrice));
+                                       receivedOrderSide, std::to_string(freshOrder.id), bestExistingOrderSide,
+                                       std::to_string(bestExistingOrder.id), tradeQty, tradePrice));
 
         const core::Trade trade{tradePrice, tradeQty, bestExistingOrder.id, freshOrder.id};
 
-            if (freshOrder.unfilledQty == 0) {
-                utils::logger::log(std::format("Fully filled {} order {}.", receivedOrderSide, freshOrder.id));
-            }
-            // In a real system, we would also record the trade here
-            if (tradeQty == bestExistingOrder.unfilledQty) {
-                utils::logger::log(std::format("Fully filled {} order {}; removing from book", bestExistingOrderSide, bestExistingOrder.id));
-                book.cancelOrder(bestExistingOrder.id);
-            } else {
-                utils::logger::log(std::format("Partially filled {} order {}, remaining unfilled quantity: {}", bestExistingOrderSide, bestExistingOrder.id, bestExistingOrder.unfilledQty - tradeQty));
-                bestExistingOrder.unfilledQty -= tradeQty;
-            }
+        if (freshOrder.unfilledQty == 0) {
+            utils::logger::log(std::format("Fully filled {} order {}.", receivedOrderSide, freshOrder.id));
+        }
+        // In a real system, we would also record the trade here
+        if (tradeQty == bestExistingOrder.unfilledQty) {
+            utils::logger::log(std::format("Fully filled {} order {}; removing from book", bestExistingOrderSide,
+                                           bestExistingOrder.id));
+            book.cancelOrder(bestExistingOrder.id);
+        } else {
+            utils::logger::log(std::format("Partially filled {} order {}, remaining unfilled quantity: {}",
+                                           bestExistingOrderSide, bestExistingOrder.id,
+                                           bestExistingOrder.unfilledQty - tradeQty));
+            bestExistingOrder.unfilledQty -= tradeQty;
+        }
         return trade;
     }
 
     void MatchingEngine::handlePartiallyFilledOrder(const core::Order &receivedOrder) const {
         if (receivedOrder.unfilledQty > 0) {
-            utils::logger::log(std::format("Unfilled quantity for order {}: {}", std::to_string(receivedOrder.id), std::to_string(receivedOrder.unfilledQty)));
+            utils::logger::log(std::format("Unfilled quantity for order {}: {}", std::to_string(receivedOrder.id),
+                                           std::to_string(receivedOrder.unfilledQty)));
             if (receivedOrder.type == core::OrderType::Market) {
-                utils::logger::log(std::format("Partially filled market order {}, remaining unfilled quantity: {}, canceling remaining quantity", std::to_string(receivedOrder.id), std::to_string(receivedOrder.unfilledQty)));
+                utils::logger::log(std::format(
+                    "Partially filled market order {}, remaining unfilled quantity: {}, canceling remaining quantity",
+                    std::to_string(receivedOrder.id), std::to_string(receivedOrder.unfilledQty)));
                 return; // Market orders are canceled if not fully filled
             }
             book.addOrder(receivedOrder);

@@ -28,7 +28,7 @@ namespace core {
         delete impl;
     }
 
-    void OrderBook::addOrder(const Order &order) const {
+    void OrderBook::addOrder(const Order &order) {
         if (order.side == Side::Buy) {
             auto &level = impl->bids[order.price];
             level.push_back(order);
@@ -45,16 +45,18 @@ namespace core {
         const auto it = impl->orderIndex.find(orderId);
         if (it == impl->orderIndex.end()) return;
 
-        if (auto orderIt = it->second; orderIt->side == Side::Buy) {
-            auto &level = impl->bids[orderIt->price];
+        if (const auto orderIt = it->second; orderIt->side == Side::Buy) {
+            const auto price = orderIt->price;
+            auto &level = impl->bids[price];
             utils::logger::log("Canceling buy order " + std::to_string(orderId) + " at price " + std::to_string(orderIt->price));
             level.erase(orderIt);
-            if (level.empty()) impl->bids.erase(orderIt->price);
+            if (level.empty()) impl->bids.erase(price);
         } else {
-            auto &level = impl->asks[orderIt->price];
+            const auto price = orderIt->price;
+            auto &level = impl->asks[price];
             level.erase(orderIt);
             utils::logger::log("Canceling sell order " + std::to_string(orderId) + " at price " + std::to_string(orderIt->price));
-            if (level.empty()) impl->asks.erase(orderIt->price);
+            if (level.empty()) impl->asks.erase(price);
         }
 
         impl->orderIndex.erase(orderId);
