@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 namespace core {
     using Price = std::int64_t;
@@ -20,4 +21,13 @@ namespace core {
         Limit,
         Market
     };
+
+    struct Trade {
+        Price price;
+        Quantity quantity;
+        OrderId maker;
+        OrderId taker;
+    };
+
+    using Trades = std::vector<Trade>;
 }

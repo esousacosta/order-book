@@ -9,9 +9,9 @@ namespace engine {
 
     private:
         core::OrderBook book;
-        void matchOrders(core::Order &freshOrder, core::Order &bestExistingOrder) const;
+        core::Trade matchOrders(core::Order &freshOrder, core::Order &bestExistingOrder) const;
         void handlePartiallyFilledOrder(const core::Order &receivedOrder) const;
         template <typename Comparator, typename GetBestOrderFunc>
-        void tryToMatchReceivedOrder(core::Order &receivedOrder, GetBestOrderFunc getBestOrder, Comparator comparePrices) const;
+        core::Trades tryToMatchReceivedOrder(core::Order &receivedOrder, GetBestOrderFunc getBestOrder, Comparator comparePrices) const;
     };
 }
