@@ -29,6 +29,12 @@ namespace core {
         delete impl;
     }
 
+    std::optional<Order> OrderBook::getOrder(OrderId orderId) const {
+        const auto it = impl->orderIndex.find(orderId);
+        if (it == impl->orderIndex.end()) return std::nullopt;
+        return *(it->second);
+    }
+
     void OrderBook::addOrder(const Order &order) {
         if (order.side == Side::Buy) {
             auto &level = impl->bids[order.price];
@@ -93,6 +99,14 @@ namespace core {
 
     bool OrderBook::hasAsks() const {
         return !impl->asks.empty();
+    }
+
+    size_t OrderBook::getAskCount() const {
+        return impl->asks.size();
+    }
+
+    size_t OrderBook::getBidCount() const {
+        return impl->bids.size();
     }
 
     std::optional<std::reference_wrapper<Order>> OrderBook::getBestAskOrder() const {

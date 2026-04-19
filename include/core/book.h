@@ -10,19 +10,32 @@
 
 namespace core {
     class OrderBook {
-        public:
+    public:
         OrderBook();
+
         ~OrderBook();
-        void addOrder(const Order& order);
+        std::optional<Order> getOrder(OrderId orderId) const ;
+
+        void addOrder(const Order &order);
+
         void cancelOrder(OrderId orderId) const;
+
         void modifyOrder(OrderId orderId, Quantity newRemainingQty, Price newPrice);
-        [[nodiscard]] std::optional<std::reference_wrapper<Order>> getBestAskOrder() const;
-        [[nodiscard]] std::optional<std::reference_wrapper<Order>> getBestBidOrder() const;
-        [[nodiscard]] bool hasBids() const;
-        [[nodiscard]] bool hasAsks() const;
+
+        std::optional<std::reference_wrapper<Order> > getBestAskOrder() const;
+
+        std::optional<std::reference_wrapper<Order> > getBestBidOrder() const;
+
+        bool hasBids() const;
+
+        bool hasAsks() const;
+
+        size_t getBidCount() const;
+
+        size_t getAskCount() const;
 
     private:
         struct Impl;
-        Impl* impl = nullptr;
+        Impl *impl = nullptr;
     };
 }
