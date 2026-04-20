@@ -36,6 +36,11 @@ namespace core {
     }
 
     void OrderBook::addOrder(const Order &order) {
+        if (getOrder(order.id).has_value()) {
+            utils::logger::log(std::format("Order with id {} already exists. Skipping add.", std::to_string(order.id)));
+            return;
+        }
+
         if (order.side == Side::Buy) {
             auto &level = impl->bids[order.price];
             level.push_back(order);
@@ -58,14 +63,16 @@ namespace core {
         if (const auto orderIt = it->second; orderIt->side == Side::Buy) {
             const auto price = orderIt->price;
             auto &level = impl->bids[price];
-            utils::logger::log("Canceling buy order " + std::to_string(orderId) + " at price " + std::to_string(orderIt->price));
+            utils::logger::log(
+                "Canceling buy order " + std::to_string(orderId) + " at price " + std::to_string(orderIt->price));
             level.erase(orderIt);
             if (level.empty()) impl->bids.erase(price);
         } else {
             const auto price = orderIt->price;
             auto &level = impl->asks[price];
             level.erase(orderIt);
-            utils::logger::log("Canceling sell order " + std::to_string(orderId) + " at price " + std::to_string(orderIt->price));
+            utils::logger::log(
+                "Canceling sell order " + std::to_string(orderId) + " at price " + std::to_string(orderIt->price));
             if (level.empty()) impl->asks.erase(price);
         }
 
@@ -77,10 +84,11 @@ namespace core {
         // If it is end, return
         if (orderEntryIt == impl->orderIndex.end()) return;
 
-        const auto& orderIt = orderEntryIt->second;
-        if (auto& order = *orderIt; newPrice != orderIt->price || newRemainingQty > order.unfilledQty) {
+        const auto &orderIt = orderEntryIt->second;
+        if (auto &order = *orderIt; newPrice != orderIt->price || newRemainingQty > order.unfilledQty) {
             utils::logger::log(std::format("[MOD] Modifying order {}: new price {}, new quantity {}",
-                                           std::to_string(orderId), std::to_string(newPrice), std::to_string(newRemainingQty)));
+                                           std::to_string(orderId), std::to_string(newPrice),
+                                           std::to_string(newRemainingQty)));
             cancelOrder(orderId);
             order.price = newPrice;
             order.unfilledQty = newRemainingQty;
@@ -109,13 +117,13 @@ namespace core {
         return impl->bids.size();
     }
 
-    std::optional<std::reference_wrapper<Order>> OrderBook::getBestAskOrder() const {
+    std::optional<std::reference_wrapper<Order> > OrderBook::getBestAskOrder() const {
         if (!hasAsks()) return std::nullopt;
         auto &bestLevelList = impl->asks.begin()->second;
         return bestLevelList.empty() ? std::nullopt : std::make_optional(std::ref(bestLevelList.front()));
     }
 
-    std::optional<std::reference_wrapper<Order>> OrderBook::getBestBidOrder() const {
+    std::optional<std::reference_wrapper<Order> > OrderBook::getBestBidOrder() const {
         if (!hasBids()) return std::nullopt;
         auto &bestLevelList = impl->bids.begin()->second;
         return bestLevelList.empty() ? std::nullopt : std::make_optional(std::ref(bestLevelList.front()));

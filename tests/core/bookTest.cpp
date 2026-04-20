@@ -44,6 +44,35 @@ TEST_F(BookTest, addOrder_sellLimitOrder_orderAddedToAsks) {
     ASSERT_EQ(bookAsk.side, sellOrder.side);
 }
 
+TEST_F(BookTest, hasBids_addBidToBook_true) {
+    // Arrange
+    core::OrderBook book;
+    const core::Order buyOrder(1, 100, 40, core::Side::Buy);
+    book.addOrder(buyOrder);
+
+    // Act & act
+    ASSERT_TRUE(book.hasBids());
+}
+
+TEST_F(BookTest, hasAsks_addAskToBook_true) {
+    // Arrange
+    core::OrderBook book;
+    const core::Order sellOrder(1, 100, 40, core::Side::Sell);
+    book.addOrder(sellOrder);
+
+    // Act & act
+    ASSERT_TRUE(book.hasAsks());
+}
+
+TEST_F(BookTest, hasAsksAndBids_emptyBook_false) {
+    // Arrange
+    const core::OrderBook book;
+
+    // Act & act
+    ASSERT_FALSE(book.hasAsks());
+    ASSERT_FALSE(book.hasBids());
+}
+
 TEST_F(BookTest, getOrder_orderNotInTheBook_nullopt) {
     // Arrange
     core::OrderBook book;
@@ -74,7 +103,7 @@ TEST_F(BookTest, getOrder_orderInTheBook_orderReturned) {
     ASSERT_EQ(order.qty, buyOrder.qty);
 }
 
-TEST_F(BookTest, getAskCount_threeAddedSellOrdersAndThreeBuyOrders_sixTotalOrders) {
+TEST_F(BookTest, getCount_threeAddedSellOrdersAndThreeBuyOrders_sixTotalOrders) {
     // Arrange
     core::OrderBook book;
     const core::Order sellOrder1(1, 100, 40, core::Side::Sell);
@@ -99,7 +128,7 @@ TEST_F(BookTest, getAskCount_threeAddedSellOrdersAndThreeBuyOrders_sixTotalOrder
     ASSERT_EQ(bidCount, 3);
 }
 
-TEST_F(BookTest, cancelOrder_cancelBuyOrder_orderCanceled) {
+TEST_F(BookTest, cancelOrder_cancelBuyAndSellOrder_ordersCanceled) {
     // Arrange
     core::OrderBook book;
     const core::Order buyOrder(1, 100, 40, core::Side::Buy);
