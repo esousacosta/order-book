@@ -148,3 +148,22 @@ TEST_F(BookTest, cancelOrder_cancelBuyAndSellOrder_ordersCanceled) {
     ASSERT_EQ(bidOpt->get().id, buyOrder.id);
     ASSERT_EQ(book.getAskCount(), 0);
 }
+
+TEST_F(BookTest, modifyOrder_orderDoestNotExistInBook_noOp) {
+    // Arrange
+    core::OrderBook book;
+    const core::Order buyOrder(1, 100, 40, core::Side::Buy);
+    book.addOrder(buyOrder);
+
+    // Act
+    book.modifyOrder(2, 50, 90);
+
+    // Assert
+    ASSERT_TRUE(book.hasBids());
+    const auto bidOpt = book.getBestBidOrder();
+    ASSERT_TRUE(bidOpt.has_value());
+    const auto& bid = bidOpt.value().get();
+    ASSERT_EQ(bid.id, buyOrder.id);
+    ASSERT_EQ(bid.price, buyOrder.price);
+    ASSERT_EQ(bid.qty, buyOrder.qty);
+}

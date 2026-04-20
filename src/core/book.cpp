@@ -37,7 +37,7 @@ namespace core {
 
     void OrderBook::addOrder(const Order &order) {
         if (getOrder(order.id).has_value()) {
-            utils::logger::log(std::format("Order with id {} already exists. Skipping add.", std::to_string(order.id)));
+            LOG_DEBUG(std::format("Order with id {} already exists. Skipping add.", std::to_string(order.id)));
             return;
         }
 
@@ -51,7 +51,7 @@ namespace core {
             level.push_back(order);
             impl->orderIndex[order.id] = std::prev(level.end());
         }
-        utils::logger::log(std::format("Added {} order {} to book for quantity {}, at price {}",
+        LOG_INFO(std::format("Added {} order {} to book for quantity {}, at price {}",
                                        order.side == Side::Buy ? "buy" : "sell", std::to_string(order.id),
                                        std::to_string(order.unfilledQty), std::to_string(order.price)));
     }
@@ -63,7 +63,7 @@ namespace core {
         if (const auto orderIt = it->second; orderIt->side == Side::Buy) {
             const auto price = orderIt->price;
             auto &level = impl->bids[price];
-            utils::logger::log(
+            LOG_DEBUG(
                 "Canceling buy order " + std::to_string(orderId) + " at price " + std::to_string(orderIt->price));
             level.erase(orderIt);
             if (level.empty()) impl->bids.erase(price);
@@ -71,7 +71,7 @@ namespace core {
             const auto price = orderIt->price;
             auto &level = impl->asks[price];
             level.erase(orderIt);
-            utils::logger::log(
+            LOG_DEBUG(
                 "Canceling sell order " + std::to_string(orderId) + " at price " + std::to_string(orderIt->price));
             if (level.empty()) impl->asks.erase(price);
         }
@@ -86,7 +86,7 @@ namespace core {
 
         const auto &orderIt = orderEntryIt->second;
         if (auto &order = *orderIt; newPrice != orderIt->price || newRemainingQty > order.unfilledQty) {
-            utils::logger::log(std::format("[MOD] Modifying order {}: new price {}, new quantity {}",
+            LOG_DEBUG(std::format("[MOD] Modifying order {}: new price {}, new quantity {}",
                                            std::to_string(orderId), std::to_string(newPrice),
                                            std::to_string(newRemainingQty)));
             cancelOrder(orderId);
@@ -95,7 +95,7 @@ namespace core {
             order.qty = newRemainingQty;
             addOrder(order);
         } else {
-            utils::logger::log(std::format("[MOD] Modifying order {}: new quantity {} (price unchanged)",
+            LOG_DEBUG(std::format("[MOD] Modifying order {}: new quantity {} (price unchanged)",
                                            std::to_string(orderId), std::to_string(newRemainingQty)));
             order.unfilledQty = newRemainingQty;
         }

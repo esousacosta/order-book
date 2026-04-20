@@ -6,7 +6,7 @@
 
 namespace engine {
     void MatchingEngine::processOrder(core::Order &order) {
-        utils::logger::log(std::format("----- Processing {} order {} for quantity {}, at price {} -----",
+        LOG_DEBUG(std::format("----- Processing {} order {} for quantity {}, at price {} -----",
                                        order.side == core::Side::Buy ? "buy" : "sell", std::to_string(order.id),
                                        std::to_string(order.qty), std::to_string(order.price)));
         core::Trades trades;
@@ -20,7 +20,7 @@ namespace engine {
         }
 
         for (const auto &[price, quantity, maker, taker]: trades) {
-            utils::logger::log(std::format(
+            LOG_INFO(std::format(
                 "--> Executed trade: price {}, quantity {}, maker order id {}, taker order id {}",
                 price, quantity, maker, taker));
         }
@@ -69,22 +69,22 @@ namespace engine {
         const core::Quantity tradeQty = std::min(freshOrder.unfilledQty, bestExistingOrder.unfilledQty);
         freshOrder.unfilledQty -= tradeQty;
 
-        utils::logger::log(std::format("Matched {} order {} with open {} order {}, for quantity {}, at price {}",
+        LOG_DEBUG(std::format("Matched {} order {} with open {} order {}, for quantity {}, at price {}",
                                        receivedOrderSide, std::to_string(freshOrder.id), bestExistingOrderSide,
                                        std::to_string(bestExistingOrder.id), tradeQty, tradePrice));
 
         const core::Trade trade{tradePrice, tradeQty, bestExistingOrder.id, freshOrder.id};
 
         if (freshOrder.unfilledQty == 0) {
-            utils::logger::log(std::format("Fully filled {} order {}.", receivedOrderSide, freshOrder.id));
+            LOG_INFO(std::format("Fully filled {} order {}.", receivedOrderSide, freshOrder.id));
         }
         // In a real system, we would also record the trade here
         if (tradeQty == bestExistingOrder.unfilledQty) {
-            utils::logger::log(std::format("Fully filled {} order {}; removing from book", bestExistingOrderSide,
+            LOG_INFO(std::format("Fully filled {} order {}; removing from book", bestExistingOrderSide,
                                            bestExistingOrder.id));
             book.cancelOrder(bestExistingOrder.id);
         } else {
-            utils::logger::log(std::format("Partially filled {} order {}, remaining unfilled quantity: {}",
+            LOG_DEBUG(std::format("Partially filled {} order {}, remaining unfilled quantity: {}",
                                            bestExistingOrderSide, bestExistingOrder.id,
                                            bestExistingOrder.unfilledQty - tradeQty));
             bestExistingOrder.unfilledQty -= tradeQty;
@@ -94,10 +94,10 @@ namespace engine {
 
     void MatchingEngine::handlePartiallyFilledOrder(const core::Order &receivedOrder) {
         if (receivedOrder.unfilledQty > 0) {
-            utils::logger::log(std::format("Unfilled quantity for order {}: {}", std::to_string(receivedOrder.id),
+            LOG_DEBUG(std::format("Unfilled quantity for order {}: {}", std::to_string(receivedOrder.id),
                                            std::to_string(receivedOrder.unfilledQty)));
             if (receivedOrder.type == core::OrderType::Market) {
-                utils::logger::log(std::format(
+                LOG_DEBUG(std::format(
                     "Partially filled market order {}, remaining unfilled quantity: {}, canceling remaining quantity",
                     std::to_string(receivedOrder.id), std::to_string(receivedOrder.unfilledQty)));
                 return; // Market orders are canceled if not fully filled

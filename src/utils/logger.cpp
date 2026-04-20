@@ -4,8 +4,8 @@
 
 
 namespace utils::logger {
-    void log(const std::string &msg) {
+    void log(const std::string &msg,  const std::string& logLevel) {
         // For simplicity, we just print to console. In a real system, this could be more sophisticated.
-        std::cout << "[LOG] " << msg << std::endl;
+        std::cout << "[" << logLevel << "] " << msg << "\n";
     }
 }

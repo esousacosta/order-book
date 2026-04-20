@@ -25,6 +25,11 @@ set(ORDER_BOOK_HEADERS
 
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
+# Use the flag -DLOG_LEVEL to set the logging level at compile time
+# example: cmake -B build -DLOG_LEVEL=2 .. to set INFO level logging
+option(LOG_LEVEL "Logging level (0=NONE, 1=DEBUG, 2=INFO)" 1)
+add_compile_definitions(ACTIVE_LOG_LEVEL=${LOG_LEVEL})
+
 # === Main executable ===
 add_executable(order_book
         src/main.cpp

@@ -22,7 +22,7 @@ int main() {
     engine.processOrder(o5);
     engine.processOrder(o6);
 
-    utils::logger::log("Processed orders o1...o6");
+    LOG_DEBUG("Processed orders o1...o6");
 
     return 0;
 }
