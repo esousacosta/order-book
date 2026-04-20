@@ -26,9 +26,22 @@ set(ORDER_BOOK_HEADERS
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
 # Use the flag -DLOG_LEVEL to set the logging level at compile time
-# example: cmake -B build -DLOG_LEVEL=2 .. to set INFO level logging
-option(LOG_LEVEL "Logging level (0=NONE, 1=DEBUG, 2=INFO)" 1)
-add_compile_definitions(ACTIVE_LOG_LEVEL=${LOG_LEVEL})
+# example: cmake -B build -DLOG_LEVEL=DEBUG .. to set DEBUG level logging
+set(LOG_LEVEL "INFO" CACHE STRING "Logging level (NONE, DEBUG, INFO)")
+set_property(CACHE LOG_LEVEL PROPERTY STRINGS NONE DEBUG INFO)
+
+# Convert string to number for C++ preprocessor
+if(LOG_LEVEL STREQUAL "NONE")
+    set(ACTIVE_LOG_LEVEL_NUM 0)
+elseif(LOG_LEVEL STREQUAL "DEBUG")
+    set(ACTIVE_LOG_LEVEL_NUM 1)
+elseif(LOG_LEVEL STREQUAL "INFO")
+    set(ACTIVE_LOG_LEVEL_NUM 2)
+else()
+    message(FATAL_ERROR "Invalid LOG_LEVEL: ${LOG_LEVEL}. Must be NONE, DEBUG, or INFO")
+endif()
+
+add_compile_definitions(ACTIVE_LOG_LEVEL=${ACTIVE_LOG_LEVEL_NUM})
 
 # === Main executable ===
 add_executable(order_book
@@ -56,4 +69,3 @@ if(MSVC)
 else()
     target_compile_options(order_book_tests PRIVATE -Wall -Wextra -Wpedantic)
 endif()
-

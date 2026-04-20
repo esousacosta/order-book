@@ -5,7 +5,7 @@
 First, ensure the project is built with test support:
 
 ```bash
-cmake -B build -S .
+cmake -B build -S . -DLOG_LEVEL=INFO
 cmake --build build
 ```
 
