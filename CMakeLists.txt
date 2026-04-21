@@ -2,11 +2,20 @@ cmake_minimum_required(VERSION 3.16)
 project(order_book)
 
 include(FetchContent)
+
+# Google Test
 FetchContent_Declare(
         googletest
         URL https://github.com/google/googletest/archive/refs/tags/v1.17.0.zip
 )
-FetchContent_MakeAvailable(googletest)
+
+# Google Benchmark
+FetchContent_Declare(
+        benchmark
+        URL https://github.com/google/benchmark/archive/refs/tags/v1.8.4.zip
+)
+
+FetchContent_MakeAvailable(googletest benchmark)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -68,4 +77,49 @@ if(MSVC)
     target_compile_options(order_book_tests PRIVATE /W4)
 else()
     target_compile_options(order_book_tests PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+# === Benchmarks ===
+option(BUILD_BENCHMARKS "Build benchmarks" ON)
+
+if(BUILD_BENCHMARKS)
+    # Micro-benchmarks
+    add_executable(micro_benchmarks
+            benchmarks/micro/insertion_bench.cpp
+#            benchmarks/micro/cancellation_bench.cpp
+#            benchmarks/micro/lookup_bench.cpp
+            benchmarks/fixtures/benchmark_helpers.cpp
+            ${ORDER_BOOK_SOURCES})
+    target_link_libraries(micro_benchmarks benchmark::benchmark)
+    target_include_directories(micro_benchmarks PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/benchmarks)
+
+    # Integration benchmarks (full matching engine)
+    # add_executable(integration_benchmarks
+    #         benchmarks/integration/engine_scenarios_bench.cpp
+    #         benchmarks/fixtures/scenario_generators.cpp
+    #         benchmarks/fixtures/benchmark_helpers.cpp
+    #         ${ORDER_BOOK_SOURCES})
+    # target_link_libraries(integration_benchmarks benchmark::benchmark)
+    # target_include_directories(integration_benchmarks PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/benchmarks)
+
+    # Combined benchmark target (runs all benchmarks)
+    add_custom_target(run_all_benchmarks
+            COMMAND micro_benchmarks
+            # COMMAND integration_benchmarks
+            DEPENDS micro_benchmarks # integration_benchmarks
+            COMMENT "Running all benchmarks...")
+
+    # Compiler flags for benchmarks (optimize for performance)
+    if(MSVC)
+        target_compile_options(micro_benchmarks PRIVATE /O2)
+        # target_compile_options(integration_benchmarks PRIVATE /O2)
+    else()
+        target_compile_options(micro_benchmarks PRIVATE -O3 -march=native)
+        # target_compile_options(integration_benchmarks PRIVATE -O3 -march=native)
+    endif()
+
+    message(STATUS "Benchmarks enabled. Build targets: micro_benchmarks")
+    # message(STATUS "Run all benchmarks with: cmake --build . --target run_all_benchmarks")
+else()
+    message(STATUS "Benchmarks disabled. Enable with: cmake -DBUILD_BENCHMARKS=ON")
 endif()
