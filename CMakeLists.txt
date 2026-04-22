@@ -123,3 +123,5 @@ if(BUILD_BENCHMARKS)
 else()
     message(STATUS "Benchmarks disabled. Enable with: cmake -DBUILD_BENCHMARKS=ON")
 endif()
+
+# Use the flag -DCMAKE_BUILD_TYPE=Release to build with optimizations for benchmarking
