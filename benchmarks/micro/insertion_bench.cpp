@@ -65,11 +65,23 @@ static void BM_insertion_random_10MOrders(benchmark::State &state) {
     }
 }
 
-BENCHMARK(BM_insertion_random_1KOrders)->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_insertion_random_10KOrders)->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_insertion_random_100KOrders)->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_insertion_random_1MOrders)->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_insertion_random_10MOrders)->Unit(benchmark::kMicrosecond);
+static void BM_insertion_random_orders(benchmark::State &state) {
+    core::OrderBook book;
+    benchmark::utils::populateRandomBook(book, state.range(0), 100, 10000, 1, 1000);
 
-// === Main Function ===
-BENCHMARK_MAIN();
+    const core::OrderId orderId{static_cast<uint64_t>(state.range(0)) + 1};
+    constexpr core::Price price{5000};
+    constexpr core::Quantity qty{100};
+    constexpr auto side{core::Side::Buy};
+    for (auto _ : state) {
+        book.addOrder(core::Order(orderId, price, qty, side));
+    }
+}
+
+// BENCHMARK(BM_insertion_random_1KOrders)->Unit(benchmark::kMicrosecond);
+// BENCHMARK(BM_insertion_random_10KOrders)->Unit(benchmark::kMicrosecond);
+// BENCHMARK(BM_insertion_random_100KOrders)->Unit(benchmark::kMicrosecond);
+// BENCHMARK(BM_insertion_random_1MOrders)->Unit(benchmark::kMicrosecond);
+// BENCHMARK(BM_insertion_random_10MOrders)->Unit(benchmark::kMicrosecond);
+BENCHMARK(BM_insertion_random_orders)->RangeMultiplier(100)->Range(1, 1000000);
+// BENCHMARK(BM_insertion_random_100MOrders)->Unit(benchmark::kMicrosecond);

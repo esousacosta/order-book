@@ -86,8 +86,9 @@ if(BUILD_BENCHMARKS)
     # Micro-benchmarks
     add_executable(micro_benchmarks
             benchmarks/micro/insertion_bench.cpp
-#            benchmarks/micro/cancellation_bench.cpp
+            benchmarks/micro/cancellation_bench.cpp
 #            benchmarks/micro/lookup_bench.cpp
+            benchmarks/micro/micro_benchmarks_main.cpp
             benchmarks/fixtures/benchmark_helpers.cpp
             ${ORDER_BOOK_SOURCES})
     target_link_libraries(micro_benchmarks benchmark::benchmark)
