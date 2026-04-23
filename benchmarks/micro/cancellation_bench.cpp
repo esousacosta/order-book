@@ -54,13 +54,24 @@ static void BM_cancellation_random_10MOrders(benchmark::State &state) {
     }
 }
 
-static void BM_cancellation_random_orders(benchmark::State &state) {
+static void BM_cancellation_success(benchmark::State &state) {
     core::OrderBook book;
-    benchmark::utils::populateRandomBook(book, state.range(0), 100, 10000, 1, 1000);
+    benchmark::utils::populateRandomBook(book, state.range(0), 1, 1024, 1, 1000);
     const core::OrderId orderId{static_cast<uint64_t>(state.range(0)) / 2};
+    const auto existingOrder = book.getOrder(orderId);
+    if (!existingOrder) {
+        state.SkipWithError("target order does not exist");
+        return;
+    }
 
     for (auto _ : state) {
         book.cancelOrder(orderId);
+        benchmark::ClobberMemory();
+
+        // Re-add the order for the next iteration
+        state.PauseTiming();
+        book.addOrder(*existingOrder);
+        state.ResumeTiming();
     }
 }
 
@@ -69,4 +80,4 @@ static void BM_cancellation_random_orders(benchmark::State &state) {
 // BENCHMARK(BM_cancellation_random_100KOrders)->Unit(benchmark::kMicrosecond);
 // BENCHMARK(BM_cancellation_random_1MOrders)->Unit(benchmark::kMicrosecond);
 // BENCHMARK(BM_cancellation_random_10MOrders)->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_cancellation_random_orders)->RangeMultiplier(100)->Range(1, 1000000);
+BENCHMARK(BM_cancellation_success)->RangeMultiplier(100)->Range(1, 1000000);

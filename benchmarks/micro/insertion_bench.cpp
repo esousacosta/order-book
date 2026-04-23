@@ -1,87 +1,157 @@
 #include <benchmark/benchmark.h>
+#include <cmath>
+#include <cstdint>
+#include <random>
 
 #include "../fixtures/benchmark_helpers.h"
 #include "core/book.h"
+#include "core/types.h"
 
-static void BM_insertion_random_1KOrders(benchmark::State &state) {
+namespace {
+    struct BenchConfig {
+        uint64_t initialDepth;
+        uint64_t opsBatchSize;
+        uint64_t seed;
+    };
+
+    inline BenchConfig cfg(const benchmark::State &state) {
+        // Args:
+        // arg0: initial book depth (number of orders)
+        // arg1: batch size for insertions (number of orders to insert per iteration)
+        // arg2: random seed for book population
+        return BenchConfig{
+            .initialDepth = static_cast<uint64_t>(state.range(0)),
+            .opsBatchSize = static_cast<uint64_t>(state.range(1)),
+            .seed = static_cast<uint64_t>(state.range(2))
+        };
+    }
+}
+
+void populateDeterministicBook(core::OrderBook &book, uint64_t depth, core::Price priceStart,
+                                   uint64_t width, uint64_t seed) {
+        std::mt19937_64 rng(seed);
+        std::uniform_int_distribution<uint64_t> priceDist(0, width - 1);
+        std::uniform_int_distribution<uint64_t> qtyDist(1, 1000);
+        std::uniform_int_distribution<int> sideDist(0, 1);
+
+        for (uint64_t i = 0; i < depth; ++i) {
+            core::OrderId orderId = static_cast<core::OrderId>(i);
+            const core::Price price = priceStart + static_cast<core::Price>(priceDist(rng));
+            const core::Quantity qty = static_cast<core::Quantity>(qtyDist(rng));
+            const auto side = static_cast<core::Side>(sideDist(rng));
+            core::Order order(orderId, price, qty, side);
+            book.addOrder(order);
+        }
+}
+
+// Benchmarks for insertion performance under various conditions
+// ------------------- Insertion success: same level -------------------
+static void BM_insertion_success_same_price_level_batched(benchmark::State &state) {
+    BenchConfig config = cfg(state);
+
     core::OrderBook book;
-    benchmark::utils::populateRandomBook(book, 1000, 100, 10000, 1, 1000);
+    const core::Price basePrice = 1'000'000;
+    const uint64_t domainWidth = 1024; // Price levels will be in [basePrice, basePrice + domainWidth)$
+    populateDeterministicBook(book, config.initialDepth, basePrice, domainWidth, config.seed);
 
-    constexpr core::OrderId orderId{1001};
-    constexpr core::Price price{5000};
+    core::OrderId nextId{static_cast<uint64_t>(config.initialDepth)};
+    uint64_t successCount = 0;
     constexpr core::Quantity qty{100};
     constexpr auto side{core::Side::Buy};
 
     for (auto _ : state) {
-        book.addOrder(core::Order(orderId, price, qty, side));
+        for (uint64_t i = 0; i < config.opsBatchSize; ++i) {
+        ++nextId;
+        core::Order order(nextId, basePrice, qty, side); // All orders have the same price level
+        book.addOrder(order);
+        benchmark::DoNotOptimize(order);
+        ++successCount;
+        }
+    benchmark::ClobberMemory();
     }
+    state.SetItemsProcessed(static_cast<int64_t>(successCount));
+    state.counters["ops"] = benchmark::Counter(successCount, benchmark::Counter::kIsRate);
+    state.counters["batch_ops"] = benchmark::Counter(config.opsBatchSize);
 }
 
-static void BM_insertion_random_10KOrders(benchmark::State &state) {
+// ------------------- Insertion success: variable price levels (market style) -------------------
+    static void BM_insertion_success_variable_price_level_market_style(benchmark::State &state) {
+    BenchConfig config = cfg(state);
+
     core::OrderBook book;
-    benchmark::utils::populateRandomBook(book, 10000, 100, 10000, 1, 1000);
-    constexpr core::OrderId orderId{10001};
-    constexpr core::Price price{5000};
+    const core::Price basePrice = 2'000'000;
+    const uint64_t domainWidth = std::max<uint64_t>(1024, config.initialDepth); // Price levels will be in [basePrice, basePrice + domainWidth)$
+    populateDeterministicBook(book, config.initialDepth, basePrice, domainWidth, config.seed);
+
+    core::OrderId nextId{static_cast<core::OrderId>(config.initialDepth)};
+    core::Price newPrice = basePrice + static_cast<core::Price>(domainWidth + 1); // Start inserting at a new price level above the existing ones
+    uint64_t successCount = 0;
     constexpr core::Quantity qty{100};
     constexpr auto side{core::Side::Buy};
+
     for (auto _ : state) {
-        book.addOrder(core::Order(orderId, price, qty, side));
+        for (uint64_t i = 0; i < config.opsBatchSize; ++i) {
+        ++nextId;
+        core::Order order(nextId, newPrice++, qty, side); // All orders have the same price level
+        book.addOrder(order);
+        benchmark::DoNotOptimize(order);
+        ++successCount;
+        }
+    benchmark::ClobberMemory();
     }
+    state.SetItemsProcessed(static_cast<int64_t>(successCount));
+    state.counters["ops"] = benchmark::Counter(successCount, benchmark::Counter::kIsRate);
+    state.counters["batch_ops"] = benchmark::Counter(config.opsBatchSize);
 }
 
-static void BM_insertion_random_100KOrders(benchmark::State &state) {
-    core::OrderBook book;
-    benchmark::utils::populateRandomBook(book, 100000, 100, 10000, 1, 1000);
-    constexpr core::OrderId orderId{100001};
-    constexpr core::Price price{5000};
-    constexpr core::Quantity qty{100};
-    constexpr auto side{core::Side::Buy};
-    for (auto _ : state) {
-        book.addOrder(core::Order(orderId, price, qty, side));
-    }
-}
+// static void BM_insertion_success_variable_price_level_market_style(benchmark::State &state) {
+//     core::OrderBook book;
+//     const auto N = state.range(0);
+//     const core::Price priceStart = 1'000'000;
+//     const uint64_t priceRange = std::max<uint64_t>(1024, static_cast<uint64_t>(std::sqrt(static_cast<double>(N))));
+//     const core::Price priceEnd = priceStart + static_cast<core::Price>(priceRange);
+//     benchmark::utils::populateRandomBook(book, N, priceStart, priceEnd, 1, 1000);
 
-static void BM_insertion_random_1MOrders(benchmark::State &state) {
-    core::OrderBook book;
-    benchmark::utils::populateRandomBook(book, 1000000, 100, 10000, 1, 1000);
-    constexpr core::OrderId orderId{1000001};
-    constexpr core::Price price{5000};
-    constexpr core::Quantity qty{100};
-    constexpr auto side{core::Side::Buy};
-    for (auto _ : state) {
-        book.addOrder(core::Order(orderId, price, qty, side));
-    }
-}
-
-static void BM_insertion_random_10MOrders(benchmark::State &state) {
-    core::OrderBook book;
-    benchmark::utils::populateRandomBook(book, 10000000, 100, 10000, 1, 1000);
-    constexpr core::OrderId orderId{10000001};
-    constexpr core::Price price{5000};
-    constexpr core::Quantity qty{100};
-    constexpr auto side{core::Side::Buy};
-    for (auto _ : state) {
-        book.addOrder(core::Order(orderId, price, qty, side));
-    }
-}
-
-static void BM_insertion_random_orders(benchmark::State &state) {
-    core::OrderBook book;
-    benchmark::utils::populateRandomBook(book, state.range(0), 100, 10000, 1, 1000);
-
-    const core::OrderId orderId{static_cast<uint64_t>(state.range(0)) + 1};
-    constexpr core::Price price{5000};
-    constexpr core::Quantity qty{100};
-    constexpr auto side{core::Side::Buy};
-    for (auto _ : state) {
-        book.addOrder(core::Order(orderId, price, qty, side));
-    }
-}
+//     core::OrderId orderId{static_cast<uint64_t>(state.range(0))};
+//     constexpr core::Quantity qty{100};
+//     constexpr auto side{core::Side::Buy};
+//     for (auto _ : state) {
+//         ++orderId;
+//         const core::Price price = priceStart + static_cast<core::Price>(orderId % priceRange);
+//         core::Order order(orderId, price, qty, side);
+//         book.addOrder(order);
+//         benchmark::DoNotOptimize(order);
+//     }
+// }
 
 // BENCHMARK(BM_insertion_random_1KOrders)->Unit(benchmark::kMicrosecond);
 // BENCHMARK(BM_insertion_random_10KOrders)->Unit(benchmark::kMicrosecond);
 // BENCHMARK(BM_insertion_random_100KOrders)->Unit(benchmark::kMicrosecond);
 // BENCHMARK(BM_insertion_random_1MOrders)->Unit(benchmark::kMicrosecond);
 // BENCHMARK(BM_insertion_random_10MOrders)->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_insertion_random_orders)->RangeMultiplier(100)->Range(1, 1000000);
+// BENCHMARK(BM_insertion_success_same_price_level_batched)
+// ->RangeMultiplier(100)->Range(1, 100000000);
+// BENCHMARK(BM_insertion_success_variable_price_level_market_style)
+// ->RangeMultiplier(100)->Range(1, 100000000);
 // BENCHMARK(BM_insertion_random_100MOrders)->Unit(benchmark::kMicrosecond);
+BENCHMARK(BM_insertion_success_same_price_level_batched)
+    ->Args({1000, 64, 42})
+    ->Args({10000, 64, 42})
+    ->Args({100000, 64, 42})
+    ->Args({300000, 64, 42})
+    ->Args({600000, 64, 42})
+    ->Args({1000000, 64, 42})
+    ->Args({2000000, 64, 42})
+    ->Args({5000000, 64, 42})
+    ->Args({10000000, 64, 42});
+
+BENCHMARK(BM_insertion_success_variable_price_level_market_style)
+    ->Args({1000, 64, 42})
+    ->Args({10000, 64, 42})
+    ->Args({100000, 64, 42})
+    ->Args({300000, 64, 42})
+    ->Args({600000, 64, 42})
+    ->Args({1000000, 64, 42})
+    ->Args({2000000, 64, 42})
+    ->Args({5000000, 64, 42})
+    ->Args({10000000, 64, 42});
