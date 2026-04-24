@@ -3,81 +3,52 @@
 #include "../fixtures/benchmark_helpers.h"
 #include "core/book.h"
 
-static void BM_cancellation_random_1KOrders(benchmark::State &state) {
+static void BM_cancel_success_batched(benchmark::State &state) {
+    const auto c = benchmark::utils::cfg(state);
     core::OrderBook book;
-    benchmark::utils::populateRandomBook(book, 1000, 100, 10000, 1, 1000);
+    core::Price basePrice = 1'000'000;
+    benchmark::utils::populateDeterministicBook(book, c.initialDepth, basePrice, 1024, c.seed);
 
-    constexpr core::OrderId orderId{500};
-
-    for (auto _ : state) {
-        book.cancelOrder(orderId);
-    }
-}
-
-static void BM_cancellation_random_10KOrders(benchmark::State &state) {
-    core::OrderBook book;
-    benchmark::utils::populateRandomBook(book, 10000, 100, 10000, 1, 1000);
-    constexpr core::OrderId orderId{5000};
-
-    for (auto _ : state) {
-        book.cancelOrder(orderId);
-    }
-}
-
-static void BM_cancellation_random_100KOrders(benchmark::State &state) {
-    core::OrderBook book;
-    benchmark::utils::populateRandomBook(book, 100000, 100, 10000, 1, 1000);
-    constexpr core::OrderId orderId{50000};
-
-    for (auto _ : state) {
-        book.cancelOrder(orderId);
-    }
-}
-
-static void BM_cancellation_random_1MOrders(benchmark::State &state) {
-    core::OrderBook book;
-    benchmark::utils::populateRandomBook(book, 1000000, 100, 10000, 1, 1000);
-    constexpr core::OrderId orderId{500000};
-
-    for (auto _ : state) {
-        book.cancelOrder(orderId);
-    }
-}
-
-static void BM_cancellation_random_10MOrders(benchmark::State &state) {
-    core::OrderBook book;
-    benchmark::utils::populateRandomBook(book, 10000000, 100, 10000, 1, 1000);
-    constexpr core::OrderId orderId{5000000};
-
-    for (auto _ : state) {
-        book.cancelOrder(orderId);
-    }
-}
-
-static void BM_cancellation_success(benchmark::State &state) {
-    core::OrderBook book;
-    benchmark::utils::populateRandomBook(book, state.range(0), 1, 1024, 1, 1000);
-    const core::OrderId orderId{static_cast<uint64_t>(state.range(0)) / 2};
-    const auto existingOrder = book.getOrder(orderId);
+    const core::OrderId targetId = c.initialDepth / 2;
+    const auto existingOrder = book.getOrder(targetId);
     if (!existingOrder) {
         state.SkipWithError("target order does not exist");
         return;
     }
 
+    uint64_t cancelCount = 0;
     for (auto _ : state) {
-        book.cancelOrder(orderId);
-        benchmark::ClobberMemory();
+        for (uint64_t i = 0; i < c.opsBatchSize; ++i) {
+            book.cancelOrder(targetId);
+            benchmark::DoNotOptimize(book);
+            ++cancelCount;
 
-        // Re-add the order for the next iteration
-        state.PauseTiming();
-        book.addOrder(*existingOrder);
-        state.ResumeTiming();
+            // Re-add the order for the next iteration
+            state.PauseTiming();
+            book.addOrder(*existingOrder);
+            state.ResumeTiming();
+        }
+        benchmark::ClobberMemory();
     }
+
+    state.SetItemsProcessed(static_cast<int64_t>(cancelCount));
+    state.counters["ops"] = benchmark::Counter(cancelCount, benchmark::Counter::kIsRate);
+    state.counters["batch_ops"] = benchmark::Counter(c.opsBatchSize);
 }
+
+BENCHMARK(BM_cancel_success_batched)
+->Args({1000, 64, 42})
+->Args({10000, 64, 42})
+->Args({100000, 64, 42})
+->Args({300000, 64, 42})
+->Args({600000, 64, 42})
+->Args({1000000, 64, 42})
+->Args({2000000, 64, 42 })
+->Args({5000000, 64, 42 });
 
 // BENCHMARK(BM_cancellation_random_1KOrders)->Unit(benchmark::kMicrosecond);
 // BENCHMARK(BM_cancellation_random_10KOrders)->Unit(benchmark::kMicrosecond);
 // BENCHMARK(BM_cancellation_random_100KOrders)->Unit(benchmark::kMicrosecond);
 // BENCHMARK(BM_cancellation_random_1MOrders)->Unit(benchmark::kMicrosecond);
 // BENCHMARK(BM_cancellation_random_10MOrders)->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_cancellation_success)->RangeMultiplier(100)->Range(1, 1000000);
+// BENCHMARK(BM_cancellation_success)->RangeMultiplier(100)->Range(1, 1000000);

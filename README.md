@@ -4,10 +4,13 @@
 
 First, ensure the project is built with test support:
 
+### Release mode + no logs
 ```bash
-cmake -B build -S . -DLOG_LEVEL=INFO
-cmake --build build
+cmake -B build-release-none -S . -DLOG_LEVEL=NONE -DCMAKE_BUILD_TYPE=Release
+cmake --build build-release-none
 ```
+
+Note: to run the tests with other configurations, it is recommended to use the build folder naming format as follows: build-<mode:release|debug>-<log_level:none|info|debug>
 
 ## Running Tests
 
@@ -16,7 +19,7 @@ cmake --build build
 Execute the test binary directly:
 
 ```bash
-./build/order_book_tests
+./build-release-none/order_book_tests
 ```
 
 This will run all tests and display results in the console.

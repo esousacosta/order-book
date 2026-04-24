@@ -8,54 +8,17 @@
 #include "core/book.h"
 #include "core/types.h"
 
-namespace {
-struct BenchConfig {
-  uint64_t initialDepth;
-  uint64_t opsBatchSize;
-  uint64_t seed;
-};
-
-inline BenchConfig cfg(const benchmark::State &state) {
-  // Args:
-  // arg0: initial book depth (number of orders)
-  // arg1: batch size for insertions (number of orders to insert per iteration)
-  // arg2: random seed for book population
-  return BenchConfig{.initialDepth = static_cast<uint64_t>(state.range(0)),
-                     .opsBatchSize = static_cast<uint64_t>(state.range(1)),
-                     .seed = static_cast<uint64_t>(state.range(2))};
-}
-} // namespace
-
-void populateDeterministicBook(core::OrderBook &book, uint64_t depth,
-                               core::Price priceStart, uint64_t width,
-                               uint64_t seed) {
-  std::mt19937_64 rng(seed);
-  std::uniform_int_distribution<uint64_t> priceDist(0, width - 1);
-  std::uniform_int_distribution<uint64_t> qtyDist(1, 1000);
-  std::uniform_int_distribution<int> sideDist(0, 1);
-
-  for (uint64_t i = 0; i < depth; ++i) {
-    core::OrderId orderId = static_cast<core::OrderId>(i);
-    const core::Price price =
-        priceStart + static_cast<core::Price>(priceDist(rng));
-    const core::Quantity qty = static_cast<core::Quantity>(qtyDist(rng));
-    const auto side = static_cast<core::Side>(sideDist(rng));
-    core::Order order(orderId, price, qty, side);
-    book.addOrder(order);
-  }
-}
-
 // Benchmarks for insertion performance under various conditions
 // ------------------- Insertion success: same level -------------------
 static void
 BM_insertion_success_same_price_level_batched(benchmark::State &state) {
-  BenchConfig config = cfg(state);
+  benchmark::utils::BenchConfig config = benchmark::utils::cfg(state);
 
   core::OrderBook book;
   const core::Price basePrice = 1'000'000;
   const uint64_t domainWidth =
       1024; // Price levels will be in [basePrice, basePrice + domainWidth)$
-  populateDeterministicBook(book, config.initialDepth, basePrice, domainWidth,
+  benchmark::utils::populateDeterministicBook(book, config.initialDepth, basePrice, domainWidth,
                             config.seed);
 
   core::OrderId nextId{static_cast<uint64_t>(config.initialDepth)};
@@ -84,14 +47,14 @@ BM_insertion_success_same_price_level_batched(benchmark::State &state) {
 // -------------------
 static void BM_insertion_success_variable_price_level_outside_domain(
     benchmark::State &state) {
-  BenchConfig config = cfg(state);
+  benchmark::utils::BenchConfig config = benchmark::utils::cfg(state);
 
   core::OrderBook book;
   const core::Price basePrice = 2'000'000;
   const uint64_t domainWidth = std::max<uint64_t>(
       1024, config.initialDepth); // Price levels will be in [basePrice,
                                   // basePrice + domainWidth)$
-  populateDeterministicBook(book, config.initialDepth, basePrice, domainWidth,
+  benchmark::utils::populateDeterministicBook(book, config.initialDepth, basePrice, domainWidth,
                             config.seed);
 
   core::OrderId nextId{static_cast<core::OrderId>(config.initialDepth)};
@@ -125,14 +88,14 @@ static void BM_insertion_success_variable_price_level_outside_domain(
 // -------------------
 static void BM_insertion_success_variable_price_level_inside_domain(
     benchmark::State &state) {
-  BenchConfig config = cfg(state);
+  benchmark::utils::BenchConfig config = benchmark::utils::cfg(state);
 
   core::OrderBook book;
   const core::Price basePrice = 2'000'000;
   const uint64_t domainWidth = std::max<uint64_t>(
       1024, config.initialDepth); // Price levels will be in [basePrice,
                                   // basePrice + domainWidth)$
-  populateDeterministicBook(book, config.initialDepth, basePrice, domainWidth,
+  benchmark::utils::populateDeterministicBook(book, config.initialDepth, basePrice, domainWidth,
                             config.seed);
 
   core::OrderId nextId{static_cast<core::OrderId>(config.initialDepth)};
