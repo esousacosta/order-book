@@ -5,48 +5,49 @@
 #include "utils/logger.h"
 
 namespace engine {
-void MatchingEngine::processOrder(core::Order &order) {
+core::Trades MatchingEngine::processOrder(core::Order &order) {
   LOG_DEBUG(std::format(
       "----- Processing {} order {} for quantity {}, at price {} -----",
       order.side == core::Side::Buy ? "buy" : "sell", std::to_string(order.id),
       std::to_string(order.qty), std::to_string(order.price)));
+
+  core::Trades trades;
   switch (order.side) {
   case core::Side::Buy:
-    tryToMatchReceivedOrder(order, &core::OrderBook::getBestAskOrder,
+    trades = tryToMatchReceivedOrder(order, &core::OrderBook::getBestAskOrder,
                                      std::less<core::Price>{});
     break;
   case core::Side::Sell:
-    tryToMatchReceivedOrder(order, &core::OrderBook::getBestBidOrder,
+    trades = tryToMatchReceivedOrder(order, &core::OrderBook::getBestBidOrder,
                                      std::greater<core::Price>{});
     break;
   }
 
-  for (const auto &[price, quantity, maker, taker] : trades) {
-    LOG_INFO(std::format("--> Executed trade: price {}, quantity {}, maker "
-                         "order id {}, taker order id {}",
-                         price, quantity, maker, taker));
-  }
+  return trades;
 }
 
 void MatchingEngine::modifyOrder(core::OrderId orderId, core::Quantity newQty,
                                  core::Price newPrice) {
-  book.modifyOrder(orderId, newQty, newPrice);
+  book->modifyOrder(orderId, newQty, newPrice);
 }
 
 template <typename Comparator, typename GetBestOrderFn>
-void MatchingEngine::tryToMatchReceivedOrder(core::Order &receivedOrder,
-                                             GetBestOrderFn getBestOrder,
-                                             Comparator comparePrices) {
-  if (const auto bestMatchOrderOpt = std::invoke(getBestOrder, book);
+core::Trades
+MatchingEngine::tryToMatchReceivedOrder(core::Order &receivedOrder,
+                                        GetBestOrderFn getBestOrder,
+                                        Comparator comparePrices) {
+  if (const auto bestMatchOrderOpt = std::invoke(getBestOrder, *book);
       !bestMatchOrderOpt.has_value()) {
     if (receivedOrder.type == core::OrderType::Limit) {
-      book.addOrder(receivedOrder);
+      book->addOrder(receivedOrder);
     }
-    return;
+    return {};
   }
 
+  core::Trades trades;
+
   while (receivedOrder.unfilledQty > 0) {
-    auto bestBookOrderOpt = std::invoke(getBestOrder, book);
+    auto bestBookOrderOpt = std::invoke(getBestOrder, *book);
     if (!bestBookOrderOpt.has_value())
       break;
     auto &bestBookOrder = bestBookOrderOpt->get();
@@ -57,6 +58,7 @@ void MatchingEngine::tryToMatchReceivedOrder(core::Order &receivedOrder,
   }
 
   handlePartiallyFilledOrder(receivedOrder);
+  return trades;
 }
 
 core::Trade MatchingEngine::matchOrders(core::Order &freshOrder,
@@ -93,7 +95,7 @@ core::Trade MatchingEngine::matchOrders(core::Order &freshOrder,
   if (tradeQty == bestExistingOrder.unfilledQty) {
     LOG_INFO(std::format("Fully filled {} order {}; removing from book",
                          bestExistingOrderSide, bestExistingOrder.id));
-    book.cancelOrder(bestExistingOrder.id);
+    book->cancelOrder(bestExistingOrder.id);
   } else {
     LOG_DEBUG(std::format(
         "Partially filled {} order {}, remaining unfilled quantity: {}",
@@ -118,7 +120,7 @@ void MatchingEngine::handlePartiallyFilledOrder(
                       std::to_string(receivedOrder.unfilledQty)));
       return; // Market orders are canceled if not fully filled
     }
-    book.addOrder(receivedOrder);
+    book->addOrder(receivedOrder);
   }
 }
 } // namespace engine

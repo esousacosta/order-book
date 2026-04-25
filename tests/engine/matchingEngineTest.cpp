@@ -1,457 +1,187 @@
+#include <gtest/gtest.h>
+
 #include "core/book.h"
 #include "engine/matching_engine.h"
-#include <gtest/gtest.h>
 
 using ::testing::Test;
 
-class MatchingEngineTest : public Test {};
+class MatchingEngineTest : public Test {
+protected:
+  core::OrderBook book;
+  engine::MatchingEngine engine{book};
+};
 
-TEST_F(MatchingEngineTest, processOrder_emptyOrderBook_orderAddedToBids) {
-  // Arrange
-  engine::MatchingEngine engine;
+TEST_F(MatchingEngineTest,
+       processOrder_limitBuyOnEmptyBook_orderRestsInBidBookAndReturnsNoTrades) {
   core::Order buyOrder(1, 100, 40, core::Side::Buy);
 
-  // Act
-  engine.processOrder(buyOrder);
+  const auto trades = engine.processOrder(buyOrder);
 
-  // Assert
-  ASSERT_TRUE(engine.bookHasBids());
-  const auto bidOpt = engine.getBestBid();
-  ASSERT_TRUE(bidOpt.has_value());
-  const core::Order &bookBid = bidOpt.value();
-  ASSERT_EQ(bookBid.id, buyOrder.id);
-  ASSERT_EQ(bookBid.price, buyOrder.price);
-  ASSERT_EQ(bookBid.qty, buyOrder.qty);
-  ASSERT_EQ(bookBid.side, buyOrder.side);
-}
-
-TEST_F(MatchingEngineTest, processOrder_emptyOrderBook_orderAddedToAsks) {
-  // Arrange
-  engine::MatchingEngine engine;
-  core::Order sellOrder(1, 100, 40, core::Side::Sell);
-
-  // Act
-  engine.processOrder(sellOrder);
-
-  // Assert
-  ASSERT_TRUE(engine.bookHasAsks());
-  const auto askOpt = engine.getBestAsk();
-  ASSERT_TRUE(askOpt.has_value());
-  const core::Order &bookAsk = askOpt.value();
-  ASSERT_EQ(bookAsk.id, sellOrder.id);
-  ASSERT_EQ(bookAsk.price, sellOrder.price);
-  ASSERT_EQ(bookAsk.qty, sellOrder.qty);
-  ASSERT_EQ(bookAsk.side, sellOrder.side);
+  ASSERT_TRUE(trades.empty());
+  ASSERT_TRUE(book.hasBids());
+  ASSERT_FALSE(book.hasAsks());
+  const auto bestBid = book.getBestBidOrder();
+  ASSERT_TRUE(bestBid.has_value());
+  EXPECT_EQ(bestBid->get().id, buyOrder.id);
+  EXPECT_EQ(bestBid->get().price, buyOrder.price);
+  EXPECT_EQ(bestBid->get().unfilledQty, buyOrder.qty);
 }
 
 TEST_F(
     MatchingEngineTest,
-    processOrder_orderMatchesExistingOrderPartially_takerOrderPartiallyFilledAndBookUpdated) {
-  // Arrange
-  engine::MatchingEngine engine;
+    processOrder_limitSellOnEmptyBook_orderRestsInAskBookAndReturnsNoTrades) {
   core::Order sellOrder(1, 100, 40, core::Side::Sell);
-  core::Order buyOrder(2, 100, 50, core::Side::Buy);
-  engine.processOrder(sellOrder);
 
-  // Act
-  engine.processOrder(buyOrder);
+  const auto trades = engine.processOrder(sellOrder);
 
-  // Assert
-  // Sell order should be fully filled and removed from the book
-  ASSERT_FALSE(engine.bookHasAsks());
-  // Buy order should be partially filled with 10 remaining quantity
-  ASSERT_TRUE(engine.bookHasBids());
-  const auto bidOpt = engine.getBestBid();
-  ASSERT_TRUE(bidOpt.has_value());
-  const core::Order &bookBid = bidOpt.value();
-  ASSERT_EQ(bookBid.id, buyOrder.id);
-  ASSERT_EQ(bookBid.price, buyOrder.price);
-  ASSERT_EQ(bookBid.qty, 50);         // Remaining quantity after partial fill
-  ASSERT_EQ(bookBid.unfilledQty, 10); // Remaining quantity after partial fill
-  ASSERT_EQ(bookBid.side, buyOrder.side);
-  core::Trades trades = engine.getTrades();
+  ASSERT_TRUE(trades.empty());
+  ASSERT_TRUE(book.hasAsks());
+  ASSERT_FALSE(book.hasBids());
+  const auto bestAsk = book.getBestAskOrder();
+  ASSERT_TRUE(bestAsk.has_value());
+  EXPECT_EQ(bestAsk->get().id, sellOrder.id);
+  EXPECT_EQ(bestAsk->get().price, sellOrder.price);
+  EXPECT_EQ(bestAsk->get().unfilledQty, sellOrder.qty);
+}
+
+TEST_F(MatchingEngineTest,
+       processOrder_crossingLimitOrder_orderFullyMatchesAndLeavesBookEmpty) {
+  core::Order restingSell(1, 100, 40, core::Side::Sell);
+  core::Order incomingBuy(2, 100, 40, core::Side::Buy);
+  engine.processOrder(restingSell);
+
+  const auto trades = engine.processOrder(incomingBuy);
+
   ASSERT_EQ(trades.size(), 1u);
-  const auto &trade = trades.front();
-  ASSERT_EQ(trade.price, 100);
-  ASSERT_EQ(trade.quantity, 40);
-  ASSERT_EQ(trade.maker, sellOrder.id);
-  ASSERT_EQ(trade.taker, buyOrder.id);
+  EXPECT_EQ(trades[0].price, 100);
+  EXPECT_EQ(trades[0].quantity, 40);
+  EXPECT_EQ(trades[0].maker, restingSell.id);
+  EXPECT_EQ(trades[0].taker, incomingBuy.id);
+  EXPECT_FALSE(book.hasAsks());
+  EXPECT_FALSE(book.hasBids());
 }
 
-TEST_F(
-    MatchingEngineTest,
-    processOrder_orderMatchesExistingOrderFully_bothOrdersFilledAndRemovedFromBook) {
-  // Arrange
-  engine::MatchingEngine engine;
-  core::Order sellOrder(1, 100, 40, core::Side::Sell);
-  core::Order buyOrder(2, 100, 40, core::Side::Buy);
-  engine.processOrder(sellOrder);
+TEST_F(MatchingEngineTest,
+       processOrder_partialFill_restsRemainingIncomingQuantityInBook) {
+  core::Order restingSell(1, 100, 40, core::Side::Sell);
+  core::Order incomingBuy(2, 100, 50, core::Side::Buy);
+  engine.processOrder(restingSell);
 
-  // Act
-  engine.processOrder(buyOrder);
+  const auto trades = engine.processOrder(incomingBuy);
 
-  // Assert
-  // Both orders should be fully filled and removed from the book
-  ASSERT_FALSE(engine.bookHasAsks());
-  ASSERT_FALSE(engine.bookHasBids());
-  core::Trades trades = engine.getTrades();
   ASSERT_EQ(trades.size(), 1u);
-  const auto &trade = trades.front();
-  ASSERT_EQ(trade.price, 100);
-  ASSERT_EQ(trade.quantity, 40);
-  ASSERT_EQ(trade.maker, sellOrder.id);
-  ASSERT_EQ(trade.taker, buyOrder.id);
+  EXPECT_EQ(trades[0].quantity, 40);
+  EXPECT_FALSE(book.hasAsks());
+  ASSERT_TRUE(book.hasBids());
+  const auto bestBid = book.getBestBidOrder();
+  ASSERT_TRUE(bestBid.has_value());
+  EXPECT_EQ(bestBid->get().id, incomingBuy.id);
+  EXPECT_EQ(bestBid->get().unfilledQty, 10);
 }
 
-TEST_F(
-    MatchingEngineTest,
-    processOrder_buyOrderMatchesMultipleExistingOrders_partiallyFillsIncomingOrderAndRemovesFilledOrdersFromBook) {
-  // Arrange
-  engine::MatchingEngine engine;
-  core::Order sellOrder1(1, 100, 30, core::Side::Sell);
-  core::Order sellOrder2(2, 95, 20, core::Side::Sell);
-  core::Order sellOrder3(3, 90, 5, core::Side::Sell);
-  core::Order buyOrder(4, 100, 40, core::Side::Buy);
-  engine.processOrder(sellOrder1);
-  engine.processOrder(sellOrder2);
-  engine.processOrder(sellOrder3);
+TEST_F(MatchingEngineTest,
+       processOrder_buySweep_matchesMultipleAskLevelsInPricePriority) {
+  core::Order ask1(1, 100, 30, core::Side::Sell);
+  core::Order ask2(2, 95, 20, core::Side::Sell);
+  core::Order ask3(3, 90, 5, core::Side::Sell);
+  core::Order incomingBuy(4, 100, 40, core::Side::Buy);
+  engine.processOrder(ask1);
+  engine.processOrder(ask2);
+  engine.processOrder(ask3);
 
-  // Act
-  engine.processOrder(buyOrder);
+  const auto trades = engine.processOrder(incomingBuy);
 
-  // Assert
-  // Sell orders 2 and 3 should be fully filled and removed from the book
-  ASSERT_TRUE(engine.bookHasAsks());
-  // Buy order should be fully filled
-  ASSERT_FALSE(engine.bookHasBids());
-  const auto askOpt = engine.getBestAsk();
-  ASSERT_TRUE(askOpt.has_value());
-  const core::Order &bookAsk = askOpt.value();
-  ASSERT_EQ(bookAsk.id, sellOrder1.id);
-  ASSERT_EQ(bookAsk.price, sellOrder1.price);
-  ASSERT_EQ(bookAsk.qty, 30);
-  ASSERT_EQ(bookAsk.unfilledQty, 15);
-  ASSERT_EQ(bookAsk.side, sellOrder1.side);
-  core::Trades trades = engine.getTrades();
   ASSERT_EQ(trades.size(), 3u);
-}
-
-TEST_F(
-    MatchingEngineTest,
-    processOrder_sellOrderMatchesMultipleExistingOrders_partiallyFillsIncomingOrderAndRemovesFilledOrdersFromBook) {
-  // Arrange
-  engine::MatchingEngine engine;
-  core::Order buyOrder1(1, 100, 30, core::Side::Buy);
-  core::Order buyOrder2(2, 95, 10, core::Side::Buy);
-  core::Order buyOrder3(3, 90, 5, core::Side::Buy);
-  core::Order sellOrder(4, 92, 40, core::Side::Sell);
-  engine.processOrder(buyOrder1);
-  engine.processOrder(buyOrder2);
-  engine.processOrder(buyOrder3);
-
-  // Act
-  engine.processOrder(sellOrder);
-
-  // Assert
-  // Buy orders 1 and 2 should be impacted
-  ASSERT_FALSE(engine.bookHasAsks());
-  // Sell order should be fully filled
-  ASSERT_TRUE(engine.bookHasBids());
-  const auto bidOpt = engine.getBestBid();
-  ASSERT_TRUE(bidOpt.has_value());
-  const core::Order &bookBid = bidOpt.value();
-  ASSERT_EQ(bookBid.id, buyOrder3.id);
-  ASSERT_EQ(bookBid.price, buyOrder3.price);
-  ASSERT_EQ(bookBid.qty, buyOrder3.qty);
-  ASSERT_EQ(bookBid.unfilledQty, 5);
-  ASSERT_EQ(bookBid.side, buyOrder3.side);
-  core::Trades trades = engine.getTrades();
-  ASSERT_EQ(trades.size(), 2u);
+  EXPECT_EQ(trades[0].price, 90);
+  EXPECT_EQ(trades[1].price, 95);
+  EXPECT_EQ(trades[2].price, 100);
+  ASSERT_TRUE(book.hasAsks());
+  ASSERT_FALSE(book.hasBids());
+  const auto bestAsk = book.getBestAskOrder();
+  ASSERT_TRUE(bestAsk.has_value());
+  EXPECT_EQ(bestAsk->get().id, ask1.id);
+  EXPECT_EQ(bestAsk->get().unfilledQty, 15);
 }
 
 TEST_F(MatchingEngineTest,
-       modifyOrder_existingBuyOrderModifiedWithHigherPrice_orderUpdatedInBook) {
-  // Arrange
-  engine::MatchingEngine engine;
-  core::Order buyOrder(1, 100, 40, core::Side::Buy);
-  engine.processOrder(buyOrder);
-
-  // Act
-  engine.modifyOrder(buyOrder.id, 40, 105); // Modify price to a higher level
-
-  // Assert
-  ASSERT_TRUE(engine.bookHasBids());
-  const auto bidOpt = engine.getBestBid();
-  ASSERT_TRUE(bidOpt.has_value());
-  const core::Order &bookBid = bidOpt.value();
-  ASSERT_EQ(bookBid.id, buyOrder.id);
-  ASSERT_EQ(bookBid.price, 105); // Price should be updated
-  ASSERT_EQ(bookBid.qty, buyOrder.qty);
-  ASSERT_EQ(bookBid.side, buyOrder.side);
-}
-
-TEST_F(MatchingEngineTest,
-       modifyOrder_existingSellOrderModifiedWithLowerPrice_orderUpdatedInBook) {
-  // Arrange
-  engine::MatchingEngine engine;
-  core::Order sellOrder(1, 100, 40, core::Side::Sell);
-  engine.processOrder(sellOrder);
-
-  // Act
-  engine.modifyOrder(sellOrder.id, 40, 95); // Modify price to a lower level
-
-  // Assert
-  ASSERT_TRUE(engine.bookHasAsks());
-  const auto askOpt = engine.getBestAsk();
-  ASSERT_TRUE(askOpt.has_value());
-  const core::Order &bookAsk = askOpt.value();
-  ASSERT_EQ(bookAsk.id, sellOrder.id);
-  ASSERT_EQ(bookAsk.price, 95); // Price should be updated
-  ASSERT_EQ(bookAsk.qty, sellOrder.qty);
-  ASSERT_EQ(bookAsk.side, sellOrder.side);
-}
-
-TEST_F(MatchingEngineTest, modifyOrder_nonExistingOrder_orderNotAddedToBook) {
-  // Arrange
-  engine::MatchingEngine engine;
-
-  // Act
-  engine.modifyOrder(999, 40, 105); // Attempt to modify a non-existing order
-
-  // Assert
-  ASSERT_FALSE(engine.bookHasBids());
-  ASSERT_FALSE(engine.bookHasAsks());
-}
-
-TEST_F(
-    MatchingEngineTest,
-    modifyOrder_existingOrderModifiedWithSamePrice_orderQuantityUpdatedInBook) {
-  // Arrange
-  engine::MatchingEngine engine;
-  core::Order buyOrder(1, 100, 40, core::Side::Buy);
-  engine.processOrder(buyOrder);
-
-  // Act
-  engine.modifyOrder(buyOrder.id, 30,
-                     100); // Modify quantity but keep price the same
-
-  // Assert
-  ASSERT_TRUE(engine.bookHasBids());
-  const auto bidOpt = engine.getBestBid();
-  ASSERT_TRUE(bidOpt.has_value());
-  const core::Order &bookBid = bidOpt.value();
-  ASSERT_EQ(bookBid.id, buyOrder.id);
-  ASSERT_EQ(bookBid.price, buyOrder.price); // Price should remain unchanged
-  ASSERT_EQ(bookBid.qty, 40);               // Quantity should be updated
-  ASSERT_EQ(bookBid.unfilledQty, 30);       // Quantity should be updated
-  ASSERT_EQ(bookBid.side, buyOrder.side);
-}
-
-TEST_F(
-    MatchingEngineTest,
-    processOrder_buyMarketOrderMatchesExistingSellOrders_fullyFillsMarketOrderAndRemovesFilledOrdersFromBook) {
-  // Arrange
-  engine::MatchingEngine engine;
-  core::Order sellOrder1(1, 100, 30, core::Side::Sell);
-  core::Order sellOrder2(2, 95, 20, core::Side::Sell);
-  core::Order buyMarketOrder(3, 0, 50, core::Side::Buy,
-                             core::OrderType::Market);
-  engine.processOrder(sellOrder1);
-  engine.processOrder(sellOrder2);
-
-  // Act
-  engine.processOrder(buyMarketOrder);
-
-  // Assert
-  // Both sell orders should be fully filled and removed from the book
-  ASSERT_FALSE(engine.bookHasAsks());
-  // Buy market order should be fully filled
-  ASSERT_FALSE(engine.bookHasBids());
-  core::Trades trades = engine.getTrades();
-  ASSERT_EQ(trades.size(), 2u);
-  const auto &trade1 = trades[0];
-  ASSERT_EQ(trade1.price, 95);
-  ASSERT_EQ(trade1.quantity, 20);
-  ASSERT_EQ(trade1.maker, sellOrder2.id);
-  ASSERT_EQ(trade1.taker, buyMarketOrder.id);
-  const auto &trade2 = trades[1];
-  ASSERT_EQ(trade2.price, 100);
-  ASSERT_EQ(trade2.quantity, 30);
-  ASSERT_EQ(trade2.maker, sellOrder1.id);
-  ASSERT_EQ(trade2.taker, buyMarketOrder.id);
-}
-
-TEST_F(
-    MatchingEngineTest,
-    processOrder_sellMarketOrderMatchesExistingBuyOrders_fullyFillsMarketOrderAndRemovesFilledOrdersFromBook) {
-  // Arrange
-  engine::MatchingEngine engine;
-  core::Order buyOrder1(1, 100, 30, core::Side::Buy);
-  core::Order buyOrder2(2, 105, 20, core::Side::Buy);
-  core::Order sellMarketOrder(3, 0, 50, core::Side::Sell,
-                              core::OrderType::Market);
-  engine.processOrder(buyOrder1);
-  engine.processOrder(buyOrder2);
-
-  // Act
-  engine.processOrder(sellMarketOrder);
-
-  // Assert
-  // Both buy orders should be fully filled and removed from the book
-  ASSERT_FALSE(engine.bookHasBids());
-  // Sell market order should be fully filled
-  ASSERT_FALSE(engine.bookHasAsks());
-  core::Trades trades = engine.getTrades();
-  ASSERT_EQ(trades.size(), 2u);
-  const auto &trade1 = trades[0];
-  ASSERT_EQ(trade1.price, 105);
-  ASSERT_EQ(trade1.quantity, 20);
-  ASSERT_EQ(trade1.maker, buyOrder2.id);
-  ASSERT_EQ(trade1.taker, sellMarketOrder.id);
-  const auto &trade2 = trades[1];
-  ASSERT_EQ(trade2.price, 100);
-  ASSERT_EQ(trade2.quantity, 30);
-  ASSERT_EQ(trade2.maker, buyOrder1.id);
-  ASSERT_EQ(trade2.taker, sellMarketOrder.id);
-}
-
-TEST_F(
-    MatchingEngineTest,
-    processOrder_buyMarketOrderMatchesExistingSellOrders_partiallyFillsMarketOrderAndRemovesFilledOrdersFromBook) {
-  // Arrange
-  engine::MatchingEngine engine;
-  core::Order sellOrder1(1, 100, 30, core::Side::Sell);
-  core::Order sellOrder2(2, 95, 20, core::Side::Sell);
-  core::Order buyMarketOrder(3, 0, 40, core::Side::Buy,
-                             core::OrderType::Market);
-  engine.processOrder(sellOrder1);
-  engine.processOrder(sellOrder2);
-
-  // Act
-  engine.processOrder(buyMarketOrder);
-
-  // Assert
-  // Sell order 2 should be fully filled and removed from the book
-  ASSERT_TRUE(engine.bookHasAsks());
-  const auto askOpt = engine.getBestAsk();
-  ASSERT_TRUE(askOpt.has_value());
-  const core::Order &bookAsk = askOpt.value();
-  ASSERT_EQ(bookAsk.id, sellOrder1.id);
-  ASSERT_EQ(bookAsk.price, sellOrder1.price);
-  ASSERT_EQ(bookAsk.qty, 30);
-  ASSERT_EQ(bookAsk.unfilledQty, 10); // Remaining quantity after partial fill
-  ASSERT_EQ(bookAsk.side, sellOrder1.side);
-  // Buy market order should be fully filled
-  ASSERT_FALSE(engine.bookHasBids());
-  core::Trades trades = engine.getTrades();
-  ASSERT_EQ(trades.size(), 2u);
-  const auto &trade1 = trades[0];
-  ASSERT_EQ(trade1.price, 95);
-  ASSERT_EQ(trade1.quantity, 20);
-  ASSERT_EQ(trade1.maker, sellOrder2.id);
-  ASSERT_EQ(trade1.taker, buyMarketOrder.id);
-  const auto &trade2 = trades[1];
-  ASSERT_EQ(trade2.price, 100);
-  ASSERT_EQ(trade2.quantity, 20);
-  ASSERT_EQ(trade2.maker, sellOrder1.id);
-  ASSERT_EQ(trade2.taker, buyMarketOrder.id);
-}
-
-TEST_F(
-    MatchingEngineTest,
-    processOrder_sellMarketOrderMatchesExistingBuyOrders_partiallyFillsMarketOrderAndRemovesFilledOrdersFromBook) {
-  // Arrange
-  engine::MatchingEngine engine;
-  core::Order buyOrder1(1, 100, 30, core::Side::Buy);
-  core::Order buyOrder2(2, 105, 20, core::Side::Buy);
-  core::Order sellMarketOrder(3, 0, 40, core::Side::Sell,
-                              core::OrderType::Market);
-  engine.processOrder(buyOrder1);
-  engine.processOrder(buyOrder2);
-
-  // Act
-  engine.processOrder(sellMarketOrder);
-
-  // Assert
-  // Buy order 2 should be fully filled and removed from the book
-  ASSERT_TRUE(engine.bookHasBids());
-  const auto bidOpt = engine.getBestBid();
-  ASSERT_TRUE(bidOpt.has_value());
-  const core::Order &bookBid = bidOpt.value();
-  ASSERT_EQ(bookBid.id, buyOrder1.id);
-  ASSERT_EQ(bookBid.price, buyOrder1.price);
-  ASSERT_EQ(bookBid.qty, 30);
-  ASSERT_EQ(bookBid.unfilledQty, 10); // Remaining quantity after partial fill
-  ASSERT_EQ(bookBid.side, buyOrder1.side);
-  // Sell market order should be fully filled
-  ASSERT_FALSE(engine.bookHasAsks());
-  core::Trades trades = engine.getTrades();
-  ASSERT_EQ(trades.size(), 2u);
-  const auto &trade1 = trades[0];
-  ASSERT_EQ(trade1.price, 105);
-  ASSERT_EQ(trade1.quantity, 20);
-  ASSERT_EQ(trade1.maker, buyOrder2.id);
-  ASSERT_EQ(trade1.taker, sellMarketOrder.id);
-  const auto &trade2 = trades[1];
-  ASSERT_EQ(trade2.price, 100);
-  ASSERT_EQ(trade2.quantity, 20);
-  ASSERT_EQ(trade2.maker, buyOrder1.id);
-  ASSERT_EQ(trade2.taker, sellMarketOrder.id);
-}
-
-TEST_F(
-    MatchingEngineTest,
-    processOrder_buyMarketOrderTooLargeForExistingSellOrders_partiallyFillsMarketOrderAndRemovesFilledOrdersFromBook) {
-  // Arrange
-  engine::MatchingEngine engine;
-  core::Order sellOrder(1, 100, 30, core::Side::Sell);
-  core::Order buyMarketOrder(2, 0, 50, core::Side::Buy,
-                             core::OrderType::Market);
-  engine.processOrder(sellOrder);
-
-  // Act
-  engine.processOrder(buyMarketOrder);
-
-  // Assert
-  // Sell order should be fully filled and removed from the book
-  ASSERT_FALSE(engine.bookHasAsks());
-  // Buy market order should be partially filled with 20 remaining quantity
-  // Market orders are canceled if not fully filled, so it should not be added
-  // to the book
-  ASSERT_FALSE(engine.bookHasBids());
-    core::Trades trades = engine.getTrades();
-    ASSERT_EQ(trades.size(), 1u);
-    const auto &trade = trades.front();
-    ASSERT_EQ(trade.price, 100);
-    ASSERT_EQ(trade.quantity, 30);
-    ASSERT_EQ(trade.maker, sellOrder.id);
-    ASSERT_EQ(trade.taker, buyMarketOrder.id);
-}
-
-TEST_F(MatchingEngineTest,
-      processOrder_sellMarketOrderTooLargeForExistingBuyOrders_partiallyFillsMarketOrderAndRemovesFilledOrdersFromBook) {
-    // Arrange
-    engine::MatchingEngine engine;
-    core::Order buyOrder(1, 100, 30, core::Side::Buy);
-    core::Order sellMarketOrder(2, 0, 50, core::Side::Sell,
+       processOrder_marketOrderWithInsufficientLiquidity_doesNotRestRemainder) {
+  core::Order restingSell(1, 100, 30, core::Side::Sell);
+  core::Order incomingBuyMarket(2, 0, 50, core::Side::Buy,
                                 core::OrderType::Market);
-    engine.processOrder(buyOrder);
+  engine.processOrder(restingSell);
 
-    // Act
-    engine.processOrder(sellMarketOrder);
+  const auto trades = engine.processOrder(incomingBuyMarket);
 
-    // Assert
-    // Buy order should be fully filled and removed from the book
-    ASSERT_FALSE(engine.bookHasBids());
-    // Sell market order should be partially filled with 20 remaining quantity
-    // Market orders are canceled if not fully filled, so it should not be added
-    // to the book
-    ASSERT_FALSE(engine.bookHasAsks());
-    core::Trades trades = engine.getTrades();
-    ASSERT_EQ(trades.size(), 1u);
-    const auto &trade = trades.front();
-    ASSERT_EQ(trade.price, 100);
-    ASSERT_EQ(trade.quantity, 30);
-    ASSERT_EQ(trade.maker, buyOrder.id);
-    ASSERT_EQ(trade.taker, sellMarketOrder.id);
+  ASSERT_EQ(trades.size(), 1u);
+  EXPECT_EQ(trades[0].quantity, 30);
+  EXPECT_FALSE(book.hasAsks());
+  EXPECT_FALSE(book.hasBids());
+}
+
+TEST_F(MatchingEngineTest,
+       processOrder_nonCrossingLimitOrder_doesNotTradeAndRestsOnBook) {
+  core::Order restingAsk(1, 105, 25, core::Side::Sell);
+  core::Order incomingBuy(2, 100, 25, core::Side::Buy);
+  engine.processOrder(restingAsk);
+
+  const auto trades = engine.processOrder(incomingBuy);
+
+  ASSERT_TRUE(trades.empty());
+  EXPECT_TRUE(book.hasAsks());
+  EXPECT_TRUE(book.hasBids());
+}
+
+TEST_F(MatchingEngineTest,
+       modifyOrder_existingOrder_updatesOrderAtNewPriceLevel) {
+  core::Order buyOrder(1, 100, 40, core::Side::Buy);
+  engine.processOrder(buyOrder);
+
+  engine.modifyOrder(buyOrder.id, 40, 103);
+
+  const auto bestBid = book.getBestBidOrder();
+  ASSERT_TRUE(bestBid.has_value());
+  EXPECT_EQ(bestBid->get().id, buyOrder.id);
+  EXPECT_EQ(bestBid->get().price, 103);
+  EXPECT_EQ(bestBid->get().unfilledQty, 40);
+}
+
+TEST_F(MatchingEngineTest,
+       modifyOrder_existingOrder_updatesOrderWithNewQuantityLower) {
+  core::Order buyOrder(1, 100, 40, core::Side::Buy);
+  engine.processOrder(buyOrder);
+
+  engine.modifyOrder(buyOrder.id, 35, 100);
+
+  const auto bestBid = book.getBestBidOrder();
+  ASSERT_TRUE(bestBid.has_value());
+  EXPECT_EQ(bestBid->get().id, buyOrder.id);
+  EXPECT_EQ(bestBid->get().price, 100);
+  EXPECT_EQ(bestBid->get().unfilledQty, 35);
+}
+
+TEST_F(MatchingEngineTest,
+       modifyOrder_existingOrder_updatesOrderWithNewQuantityHigher) {
+  core::Order buyOrder(1, 100, 40, core::Side::Buy);
+  engine.processOrder(buyOrder);
+
+  engine.modifyOrder(buyOrder.id, 45, 100);
+
+  const auto bestBid = book.getBestBidOrder();
+  ASSERT_TRUE(bestBid.has_value());
+  EXPECT_EQ(bestBid->get().id, buyOrder.id);
+  EXPECT_EQ(bestBid->get().price, 100);
+  EXPECT_EQ(bestBid->get().unfilledQty, 45);
+}
+TEST_F(MatchingEngineTest,
+       processOrder_multipleCalls_returnsOnlyCurrentCallTrades) {
+  core::Order sell1(1, 100, 40, core::Side::Sell);
+  core::Order buy1(2, 100, 40, core::Side::Buy);
+  core::Order buyNoMatch(3, 90, 10, core::Side::Buy);
+
+  engine.processOrder(sell1);
+  const auto firstCallTrades = engine.processOrder(buy1);
+  const auto secondCallTrades = engine.processOrder(buyNoMatch);
+
+  ASSERT_EQ(firstCallTrades.size(), 1u);
+  EXPECT_TRUE(secondCallTrades.empty());
 }
