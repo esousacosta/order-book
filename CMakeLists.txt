@@ -66,7 +66,7 @@ add_executable(order_book_tests
 tests/core/bookTest.cpp
 tests/engine/matchingEngineTest.cpp
 #tests/core/orderTest.cpp
-#tests/integration/endToEndTest.cpp
+tests/integration/endToEndTest.cpp
 ${ORDER_BOOK_SOURCES})
 target_link_libraries(order_book_tests gtest gtest_main)
 target_include_directories(order_book_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
