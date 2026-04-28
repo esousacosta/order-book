@@ -5,25 +5,26 @@
 
 namespace engine {
 class MatchingEngine {
-public:
+ public:
   MatchingEngine() = default;
-  explicit MatchingEngine(core::OrderBook &externalBook)
+  explicit MatchingEngine(core::OrderBook& externalBook)
       : book(&externalBook) {}
 
-  core::Trades processOrder(core::Order &order);
-  void modifyOrder(core::OrderId orderId, core::Quantity newQty,
+  core::Trades processOrder(core::Order& order);
+  void modifyOrder(core::OrderId orderId,
+                   core::Quantity newQty,
                    core::Price newPrice);
 
-private:
+ private:
   core::OrderBook ownedBook;
-  core::OrderBook *book = &ownedBook;
+  core::OrderBook* book = &ownedBook;
 
-  core::Trade matchOrders(core::Order &freshOrder,
-                          core::Order &bestExistingOrder);
-  void handlePartiallyFilledOrder(const core::Order &receivedOrder);
+  core::Trade matchOrders(core::Order& freshOrder,
+                          core::Order& bestExistingOrder);
+  void handlePartiallyFilledOrder(const core::Order& receivedOrder);
   template <typename Comparator, typename GetBestOrderFunc>
-  core::Trades tryToMatchReceivedOrder(core::Order &receivedOrder,
+  core::Trades tryToMatchReceivedOrder(core::Order& receivedOrder,
                                        GetBestOrderFunc getBestOrder,
                                        Comparator comparePrices);
 };
-} // namespace engine
+}  // namespace engine

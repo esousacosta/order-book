@@ -95,13 +95,13 @@ if(BUILD_BENCHMARKS)
     target_include_directories(micro_benchmarks PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/benchmarks)
 
     # Integration benchmarks (full matching engine)
-    # add_executable(integration_benchmarks
-    #         benchmarks/integration/engine_scenarios_bench.cpp
+    add_executable(integration_benchmarks
+            benchmarks/integration/engine_scenarios_bench.cpp
     #         benchmarks/fixtures/scenario_generators.cpp
     #         benchmarks/fixtures/benchmark_helpers.cpp
-    #         ${ORDER_BOOK_SOURCES})
-    # target_link_libraries(integration_benchmarks benchmark::benchmark)
-    # target_include_directories(integration_benchmarks PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/benchmarks)
+            ${ORDER_BOOK_SOURCES})
+    target_link_libraries(integration_benchmarks benchmark::benchmark)
+    target_include_directories(integration_benchmarks PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/benchmarks)
 
     # Combined benchmark target (runs all benchmarks)
     add_custom_target(run_all_benchmarks
